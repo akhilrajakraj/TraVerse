@@ -1,0 +1,22 @@
+services:
+  django:
+    env_file:
+      - ../env/production.env
+
+    restart: always
+
+  nginx:
+    depends_on:
+      django:
+        condition: service_healthy
+
+    restart: always
+
+  postgres:
+    env_file:
+      - ../env/production.env
+
+    restart: always
+
+  redis:
+    restart: always

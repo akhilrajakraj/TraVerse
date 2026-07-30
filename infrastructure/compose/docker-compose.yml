@@ -1,0 +1,107 @@
+services:
+  django:
+    build:
+      context: ../../
+      dockerfile: infrastructure/docker/django/Dockerfile
+
+    image: dockforge-backend:1.0
+    container_name: dockforge-backend
+
+    restart: unless-stopped
+
+    env_file:
+      - ../env/development.env
+
+    expose:
+      - "8000"
+
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+
+    networks:
+      - dockforge-network
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  nginx:
+    build:
+      context: ../docker/nginx
+      dockerfile: Dockerfile
+
+    image: dockforge-nginx:1.0
+    container_name: dockforge-nginx
+
+    restart: unless-stopped
+
+    ports:
+      - "80:80"
+
+    depends_on:
+      - django
+
+    networks:
+      - dockforge-network
+
+  postgres:
+    image: postgres:17
+    container_name: dockforge-postgres
+
+    restart: unless-stopped
+
+    env_file:
+      - ../env/development.env
+
+    ports:
+      - "5432:5432"
+
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+    networks:
+      - dockforge-network
+
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  redis:
+    image: redis:8-alpine
+    container_name: dockforge-redis
+
+    restart: unless-stopped
+
+    ports:
+      - "6379:6379"
+
+    networks:
+      - dockforge-network
+
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
+volumes:
+  postgres_data:
+
+networks:
+  dockforge-network:
+    driver: bridge
