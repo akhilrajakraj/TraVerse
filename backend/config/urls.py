@@ -32,5 +32,9 @@ urlpatterns = [
         "api/accounts/",
         include("apps.accounts.urls"),
     ),
+    path(
+        "api/profiles/",
+        include("apps.profiles.urls"),
+    ),
 
 ]
