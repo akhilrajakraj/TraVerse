@@ -52,7 +52,21 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-]
+
+    "apps.core",
+    "apps.accounts",
+    "apps.travelers",
+    "apps.destinations",
+    "apps.trips",
+    "apps.planner",
+    "apps.itinerary",
+    "apps.ai",
+    "apps.chat",
+    "apps.documents",
+    "apps.notifications",
+    "apps.payments",
+    "apps.bookings",
+    "apps.analytics",]
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
