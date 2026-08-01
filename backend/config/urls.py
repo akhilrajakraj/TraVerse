@@ -44,5 +44,8 @@ urlpatterns = [
         "api/trips/",
         include("apps.trips.urls"),
     ),
-
+    path(
+        "api/itinerary/",
+        include("apps.itinerary.urls"),
+    ),
 ]
