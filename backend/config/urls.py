@@ -36,5 +36,9 @@ urlpatterns = [
         "api/profiles/",
         include("apps.profiles.urls"),
     ),
+    path(
+        "api/destinations/",
+        include("apps.destinations.urls"),
+    ),
 
 ]

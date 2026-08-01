@@ -1,7 +1,15 @@
+"""
+Application configuration for the Destinations application.
+"""
+
 from django.apps import AppConfig
 
 
 class DestinationsConfig(AppConfig):
-    default_auto_field = 'django.db.models.BigAutoField'
+    """
+    Configuration for the Destinations application.
+    """
+
     name = "apps.destinations"
+
     verbose_name = "Destinations"
