@@ -59,7 +59,7 @@ INSTALLED_APPS = [
     "apps.profiles.apps.ProfilesConfig",
     "apps.travelers",
     "apps.destinations.apps.DestinationsConfig",
-    "apps.trips",
+    "apps.trips.apps.TripsConfig",
     "apps.planner",
     "apps.itinerary",
     "apps.ai",

@@ -40,5 +40,9 @@ urlpatterns = [
         "api/destinations/",
         include("apps.destinations.urls"),
     ),
+    path(
+        "api/trips/",
+        include("apps.trips.urls"),
+    ),
 
 ]
