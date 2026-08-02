@@ -48,4 +48,8 @@ urlpatterns = [
         "api/itinerary/",
         include("apps.itinerary.urls"),
     ),
+    path(
+        "api/budget/",
+        include("apps.budget.urls"),
+    ),
 ]
