@@ -52,4 +52,8 @@ urlpatterns = [
         "api/budget/",
         include("apps.budget.urls"),
     ),
+    path(
+        "api/recommendations/",
+        include("apps.recommendations.urls"),
+    ),
 ]

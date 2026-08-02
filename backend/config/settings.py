@@ -61,6 +61,7 @@ INSTALLED_APPS = [
     "apps.destinations.apps.DestinationsConfig",
     "apps.trips.apps.TripsConfig",
     "apps.budget",
+    "apps.recommendations",
     "apps.planner",
     "apps.itinerary",
     "apps.ai",
