@@ -64,7 +64,6 @@ INSTALLED_APPS = [
     "apps.recommendations",
     "apps.planner",
     "apps.itinerary",
-    "apps.ai",
     "apps.chat",
     "apps.documents",
     "apps.notifications",
