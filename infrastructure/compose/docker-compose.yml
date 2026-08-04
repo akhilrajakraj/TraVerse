@@ -22,7 +22,6 @@ services:
       retries: 3
       start_period: 30s
 
-
     networks:
       - traverse-network
 
@@ -31,6 +30,42 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+
+  celery:
+    build:
+      context: ../../
+      dockerfile: infrastructure/docker/django/Dockerfile
+
+    image: traverse-backend:1.0
+    container_name: traverse-celery
+    hostname: celery
+
+    restart: unless-stopped
+
+    command: >
+      celery
+      -A config
+      worker
+      --loglevel=INFO
+      --pool=threads
+
+    env_file:
+      - ../env/development.env
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+    healthcheck:
+      test: ["CMD", "celery", "-A", "config", "status"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+    networks:
+      - traverse-network
 
   nginx:
     build:

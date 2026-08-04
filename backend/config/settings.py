@@ -61,6 +61,7 @@ INSTALLED_APPS = [
     "apps.destinations.apps.DestinationsConfig",
     "apps.trips.apps.TripsConfig",
     "apps.budget",
+    "apps.ai_agents",
     "apps.recommendations",
     "apps.planner",
     "apps.itinerary",
@@ -234,3 +235,36 @@ SIMPLE_JWT = {
     "BLACKLIST_AFTER_ROTATION": False,
     "UPDATE_LAST_LOGIN": True,
 }
+
+# ==========================================================
+# Celery Configuration
+# ==========================================================
+
+CELERY_BROKER_URL = (
+    f"redis://{os.getenv('REDIS_HOST')}:"
+    f"{os.getenv('REDIS_PORT')}/0"
+)
+
+CELERY_RESULT_BACKEND = CELERY_BROKER_URL
+
+CELERY_ACCEPT_CONTENT = [
+    "json",
+]
+
+CELERY_TASK_SERIALIZER = "json"
+
+CELERY_RESULT_SERIALIZER = "json"
+
+CELERY_TIMEZONE = TIME_ZONE
+
+CELERY_ENABLE_UTC = True
+
+CELERY_TASK_TRACK_STARTED = True
+
+CELERY_TASK_TIME_LIMIT = 60 * 30
+
+CELERY_TASK_SOFT_TIME_LIMIT = 60 * 25
+
+CELERY_WORKER_PREFETCH_MULTIPLIER = 1
+
+CELERY_TASK_ACKS_LATE = True

@@ -56,4 +56,8 @@ urlpatterns = [
         "api/recommendations/",
         include("apps.recommendations.urls"),
     ),
+    path(
+        "api/ai_agents/",
+        include("apps.ai_agents.urls"),
+    ),
 ]
