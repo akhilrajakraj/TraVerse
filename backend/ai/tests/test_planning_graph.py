@@ -16,7 +16,11 @@ from unittest.mock import patch
 
 from langgraph.graph.state import CompiledStateGraph
 
-from ai.agents.schemas import ItineraryPlanSchema
+from ai.agents.schemas import (
+    BudgetEstimateSchema,
+    BudgetLineItemEstimateSchema,
+    ItineraryPlanSchema,
+)
 from ai.graphs.planning_graph import (
     build_planning_graph,
     run_planning_graph,
@@ -37,8 +41,12 @@ def test_build_planning_graph_returns_compiled_graph():
     )
 
 
+@patch("ai.graphs.planning_graph.budget_agent")
 @patch("ai.graphs.planning_graph.travel_planner_agent")
-def test_run_planning_graph(mock_agent):
+def test_run_planning_graph(
+    mock_travel_agent,
+    mock_budget_agent,
+):
     """
     The planning graph should delegate execution to the Travel Planner
     agent and return the updated PlanningGraphState.
@@ -73,13 +81,30 @@ def test_run_planning_graph(mock_agent):
             ]
         }
     )
+    
+    budget = BudgetEstimateSchema(
+        line_items=[
+            BudgetLineItemEstimateSchema(
+                category="food",
+                description="Meals",
+                estimated_amount=150.0,
+            )
+        ]
+    )
 
-    updated_state: PlanningGraphState = {
+    travel_state: PlanningGraphState = {
         **state,
         "itinerary": itinerary,
     }
+    
+    mock_travel_agent.plan.return_value = travel_state
+    
+    budget_state = {
+        **travel_state,
+        "budget_estimate": budget,
+    }
 
-    mock_agent.plan.return_value = updated_state
+    mock_budget_agent.estimate_budget.return_value = budget_state
 
     result = run_planning_graph(
         state,
@@ -102,7 +127,13 @@ def test_run_planning_graph(mock_agent):
     assert result["trip_notes"] == state["trip_notes"]
 
     assert result["itinerary"] == itinerary
+    
+    assert result["budget_estimate"] == budget
 
-    mock_agent.plan.assert_called_once_with(
+    mock_travel_agent.plan.assert_called_once_with(
         state,
+    )
+    
+    mock_budget_agent.estimate_budget.assert_called_once_with(
+        travel_state,   
     )

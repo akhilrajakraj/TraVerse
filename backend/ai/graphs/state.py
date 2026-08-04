@@ -16,7 +16,10 @@ from typing import TypedDict
 
 from typing_extensions import NotRequired
 
-from ai.agents.schemas import ItineraryPlanSchema
+from ai.agents.schemas import (
+    ItineraryPlanSchema,
+    BudgetEstimateSchema,
+)
 
 
 class PlanningGraphState(TypedDict):
@@ -56,6 +59,8 @@ class PlanningGraphState(TypedDict):
     # ------------------------------------------------------------------
 
     itinerary: NotRequired[ItineraryPlanSchema]
+    
+    budget_estimate: NotRequired[BudgetEstimateSchema]
 
     # ------------------------------------------------------------------
     # Execution Metadata

@@ -94,3 +94,68 @@ class ItineraryPlanSchema(BaseModel):
         ...,
         min_length=1,
     )
+    
+# ==============================================================================
+# Budget Estimation Schemas
+# ==============================================================================
+
+
+class BudgetLineItemEstimateSchema(BaseModel):
+    """
+    Represents one AI-estimated budget line item.
+
+    This schema intentionally remains independent of Django models.
+    It is used only inside the AI package before persistence.
+    """
+
+    category: str = Field(
+        ...,
+        pattern=r"^(accommodation|transport|food|activities|shopping|misc)$",
+    )
+
+    description: str = Field(
+        ...,
+        min_length=1,
+        max_length=255,
+    )
+
+    estimated_amount: float = Field(
+        ...,
+        ge=0,
+    )
+
+    @field_validator("description")
+    @classmethod
+    def validate_description(
+        cls,
+        value: str,
+    ) -> str:
+        """
+        Prevent blank descriptions.
+        """
+
+        cleaned = value.strip()
+
+        if not cleaned:
+            raise ValueError(
+                "description must not be blank."
+            )
+
+        return cleaned
+
+
+class BudgetEstimateSchema(BaseModel):
+    """
+    Represents the complete AI-generated budget estimate.
+
+    The total budget is intentionally NOT included here.
+
+    Django remains the single source of truth for totals via
+    Budget services and model signals.
+    """
+
+    line_items: list[BudgetLineItemEstimateSchema] = Field(
+        ...,
+        min_length=1,
+        max_length=50,
+    )

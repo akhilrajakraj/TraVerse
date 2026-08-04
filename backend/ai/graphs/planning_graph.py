@@ -11,11 +11,17 @@ Current graph:
 Travel Planner
       │
       ▼
-      END
+Budget Agent
+      │
+      ▼
+END
 
-The graph currently contains a single node. Additional planning agents
-(weather, budget, recommendations, packing, etc.) can be inserted later
-without changing callers.
+Additional planning agents can be added by:
+
+1. Creating a node function.
+2. Appending it to WORKFLOW.
+
+The graph assembly logic does not need to change.
 """
 
 from __future__ import annotations
@@ -26,8 +32,14 @@ from langgraph.graph import (
     StateGraph,
 )
 
+from ai.agents.budget_agent import budget_agent
 from ai.agents.travel_planner import travel_planner_agent
 from ai.graphs.state import PlanningGraphState
+
+
+# ==============================================================================
+# Graph Nodes
+# ==============================================================================
 
 
 def _travel_planner_node(
@@ -35,44 +47,108 @@ def _travel_planner_node(
 ) -> PlanningGraphState:
     """
     Execute the Travel Planner agent.
-
-    The agent returns a new immutable graph state. LangGraph merges the
-    returned state into the execution context.
     """
 
     return travel_planner_agent.plan(state)
 
 
+def _budget_agent_node(
+    state: PlanningGraphState,
+) -> PlanningGraphState:
+    """
+    Execute the Budget Agent.
+    """
+
+    return budget_agent.estimate_budget(state)
+
+
+# ==============================================================================
+# Workflow Definition
+# ==============================================================================
+
+#
+# Future agents should simply be appended here.
+#
+# Example:
+#
+# WORKFLOW = [
+#     ("travel_planner", _travel_planner_node),
+#     ("budget_agent", _budget_agent_node),
+#     ("hotel_agent", _hotel_agent_node),
+# ]
+#
+
+WORKFLOW = [
+    (
+        "travel_planner",
+        _travel_planner_node,
+    ),
+    (
+        "budget_agent",
+        _budget_agent_node,
+    ),
+]
+
+
+# ==============================================================================
+# Graph Builder
+# ==============================================================================
+
+
 def build_planning_graph():
     """
     Build and compile the AI planning workflow.
-
-    Returns
-    -------
-    CompiledStateGraph
-        Executable LangGraph workflow.
     """
 
     graph = StateGraph(
         PlanningGraphState,
     )
 
-    graph.add_node(
-        "travel_planner",
-        _travel_planner_node,
-    )
+    #
+    # Register nodes.
+    #
+    for node_name, node_function in WORKFLOW:
 
+        graph.add_node(
+            node_name,
+            node_function,
+        )
+
+    #
+    # Connect START.
+    #
     graph.add_edge(
         START,
-        "travel_planner",
+        WORKFLOW[0][0],
     )
 
+    #
+    # Connect sequential workflow.
+    #
+    for current, nxt in zip(
+        WORKFLOW,
+        WORKFLOW[1:],
+    ):
+
+        graph.add_edge(
+            current[0],
+            nxt[0],
+        )
+
+    #
+    # Connect END.
+    #
     graph.add_edge(
-        "travel_planner",
+        WORKFLOW[-1][0],
         END,
     )
 
     return graph.compile()
+
+
+# ==============================================================================
+# Public API
+# ==============================================================================
 
 
 def run_planning_graph(
@@ -80,16 +156,6 @@ def run_planning_graph(
 ) -> PlanningGraphState:
     """
     Execute the planning workflow.
-
-    Parameters
-    ----------
-    initial_state:
-        Initial immutable planning state.
-
-    Returns
-    -------
-    PlanningGraphState
-        Final graph state after execution.
     """
 
     compiled_graph = build_planning_graph()

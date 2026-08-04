@@ -33,6 +33,8 @@ from ai.agents.schemas import (
     ItineraryDaySchema,
     ItineraryItemSchema,
     ItineraryPlanSchema,
+    BudgetEstimateSchema,
+    BudgetLineItemEstimateSchema,
 )
 
 from apps.ai_agents.models import (
@@ -45,9 +47,15 @@ from apps.ai_agents.services import (
     _build_initial_state,
     _persist_itinerary_plan,
     run_travel_planner,
+    _persist_budget_estimate,
 )
 
 from apps.destinations.models import Destination
+
+from apps.budget.models import (
+    Budget,
+    BudgetLineItem,
+)
 
 from apps.itinerary.models import (
     ItineraryDay,
@@ -492,3 +500,172 @@ class AgentRunCreationTests(
         mock_graph.assert_called_once()
 
         mock_persist.assert_called_once()
+        
+class PersistBudgetEstimateTests(
+    BaseServiceTestCase,
+):
+    """
+    Verify persistence of AI-generated budget estimates.
+    """
+
+    def setUp(self):
+        super().setUp()
+
+        self.budget_estimate = BudgetEstimateSchema(
+            line_items=[
+                BudgetLineItemEstimateSchema(
+                    category="food",
+                    description="Meals",
+                    estimated_amount=150.00,
+                ),
+                BudgetLineItemEstimateSchema(
+                    category="transport",
+                    description="Metro",
+                    estimated_amount=80.00,
+                ),
+            ]
+        )
+
+    @patch(
+        "apps.ai_agents.services.budget_services.create_budget_line_item",
+    )
+    def test_persist_budget_estimate(
+        self,
+        mock_create,
+    ):
+        _persist_budget_estimate(
+            trip=self.trip,
+            budget_estimate=self.budget_estimate,
+        )
+
+        self.assertEqual(
+            Budget.objects.count(),
+            1,
+        )
+
+        self.assertEqual(
+            mock_create.call_count,
+            2,
+        )
+
+class PersistExistingBudgetTests(
+    BaseServiceTestCase,
+):
+    """
+    Existing AI-generated budget items should be replaced,
+    while manual items remain.
+    """
+
+    def setUp(self):
+        super().setUp()
+
+        self.budget, created = Budget.objects.get_or_create(
+            trip=self.trip,
+        )
+
+        BudgetLineItem.objects.create(
+            budget=self.budget,
+            category="food",
+            description="Old AI Item",
+            amount=Decimal("100.00"),
+            is_ai_estimated=True,
+        )
+
+        BudgetLineItem.objects.create(
+            budget=self.budget,
+            category="food",
+            description="Manual Item",
+            amount=Decimal("50.00"),
+            is_ai_estimated=False,
+        )
+
+        self.estimate = BudgetEstimateSchema(
+            line_items=[
+                BudgetLineItemEstimateSchema(
+                    category="food",
+                    description="Meals",
+                    estimated_amount=200.00,
+                )
+            ]
+        )
+
+    @patch(
+        "apps.ai_agents.services.budget_services.create_budget_line_item",
+    )
+    def test_existing_ai_items_are_replaced(
+        self,
+        mock_create,
+    ):
+        _persist_budget_estimate(
+            trip=self.trip,
+            budget_estimate=self.estimate,
+        )
+
+        self.assertEqual(
+            BudgetLineItem.objects.filter(
+                is_ai_estimated=True,
+            ).count(),
+            0,
+        )
+
+        self.assertEqual(
+            BudgetLineItem.objects.filter(
+                is_ai_estimated=False,
+            ).count(),
+            1,
+        )
+
+        mock_create.assert_called_once()
+        
+class RunTravelPlannerBudgetPersistenceTests(
+    BaseServiceTestCase,
+):
+    """
+    Verify that successful planning persists
+    both itinerary and budget.
+    """
+
+    @patch(
+        "apps.ai_agents.services._persist_budget_estimate",
+    )
+    @patch(
+        "apps.ai_agents.services._persist_itinerary_plan",
+    )
+    @patch(
+        "apps.ai_agents.services.run_planning_graph",
+    )
+    def test_budget_is_persisted(
+        self,
+        mock_graph,
+        mock_itinerary,
+        mock_budget,
+    ):
+        budget = BudgetEstimateSchema(
+            line_items=[
+                BudgetLineItemEstimateSchema(
+                    category="food",
+                    description="Meals",
+                    estimated_amount=100.00,
+                )
+            ]
+        )
+
+        mock_graph.return_value = {
+            "trip_title": self.trip.title,
+            "destination_names": ["Kyoto"],
+            "start_date": "2026-09-10",
+            "end_date": "2026-09-15",
+            "traveler_count": 2,
+            "trip_notes": self.trip.notes,
+            "itinerary": self.plan,
+            "budget_estimate": budget,
+        }
+
+        run_travel_planner(
+            trip=self.trip,
+            triggered_by=self.user,
+        )
+
+        mock_itinerary.assert_called_once()
+
+        mock_budget.assert_called_once()

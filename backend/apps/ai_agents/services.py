@@ -18,6 +18,10 @@ import logging
 
 from django.utils import timezone
 
+from decimal import Decimal
+
+from django.db import transaction
+
 from ai.exceptions import (
     LLMCallFailed,
     StructuredOutputInvalid,
@@ -32,6 +36,9 @@ from apps.ai_agents.models import (
 from apps.itinerary import services as itinerary_services
 from apps.itinerary.models import ItineraryDay
 from apps.trips.models import Trip
+
+from apps.budget import services as budget_services
+from apps.budget.models import Budget
 
 logger = logging.getLogger("apps.ai_agents")
 
@@ -95,6 +102,37 @@ def _persist_itinerary_plan(
                 is_ai_generated=True,
             )
 
+def _persist_budget_estimate(
+    *,
+    trip: Trip,
+    budget_estimate,
+) -> None:
+    """
+    Persist validated AI-generated budget estimates.
+
+    Only AI-generated budget line items are replaced.
+    Manual entries remain untouched.
+    """
+
+    budget, _ = Budget.objects.get_or_create(
+        trip=trip,
+    )
+
+    budget.line_items.filter(
+        is_ai_estimated=True,
+    ).delete()
+
+    for line_item in budget_estimate.line_items:
+
+        budget_services.create_budget_line_item(
+            budget=budget,
+            category=line_item.category,
+            description=line_item.description,
+            amount=Decimal(
+                str(line_item.estimated_amount)
+            ), 
+            is_ai_estimated=True,
+        )
 
 def run_travel_planner(
     *,
@@ -123,11 +161,20 @@ def run_travel_planner(
         final_state = run_planning_graph(
             initial_state,
         )
+        
+        with transaction.atomic():
 
-        _persist_itinerary_plan(
-            trip=trip,
-            plan=final_state["itinerary"],
-        )
+            _persist_itinerary_plan(
+                trip=trip,
+                plan=final_state["itinerary"],
+            )
+            
+            if "budget_estimate" in final_state:
+
+                _persist_budget_estimate(
+                    trip=trip,
+                    budget_estimate=final_state["budget_estimate"],
+                )
 
     except StructuredOutputInvalid as exc:
 
