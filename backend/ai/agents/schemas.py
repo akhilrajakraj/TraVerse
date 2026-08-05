@@ -159,3 +159,60 @@ class BudgetEstimateSchema(BaseModel):
         min_length=1,
         max_length=50,
     )
+    
+# ==============================================================================
+# Weather Schemas
+# ==============================================================================
+
+class DailyWeatherSchema(BaseModel):
+    """
+    Weather estimate for a single itinerary day.
+    """
+
+    date: date
+
+    condition: str = Field(
+        ...,
+        max_length=50,
+    )
+
+    high_f: float
+
+    low_f: float
+
+    precipitation_chance: int = Field(
+        ...,
+        ge=0,
+        le=100,
+    )
+
+    @field_validator("low_f")
+    @classmethod
+    def low_must_not_exceed_high(
+        cls,
+        value: float,
+        info,
+    ) -> float:
+        """
+        Ensure the daily low temperature does not exceed the high.
+        """
+
+        high = info.data.get("high_f")
+
+        if high is not None and value > high:
+            raise ValueError(
+                "low_f must not exceed high_f"
+            )
+
+        return value
+
+
+class WeatherForecastSchema(BaseModel):
+    """
+    Weather forecast for every itinerary day.
+    """
+
+    days: list[DailyWeatherSchema] = Field(
+        ...,
+        min_length=1,
+    )

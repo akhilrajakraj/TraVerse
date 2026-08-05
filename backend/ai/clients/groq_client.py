@@ -8,6 +8,10 @@ client.
 
 import logging
 
+import json
+from typing import Callable
+
+from django.template import response
 from groq import Groq
 from tenacity import (
     retry,
@@ -63,35 +67,29 @@ class GroqClient:
         ),
         reraise=True,
     )
-    def _call(
+    def _call_raw(
         self,
         *,
-        system_prompt: str,
-        user_prompt: str,
+        messages: list[dict],
         temperature: float,
-    ) -> str:
+        tools: list[dict] | None = None,
+    ):
         """
-        Perform a single LLM call.
-
-        Automatic retry is handled by the tenacity decorator.
+        Shared low-level Groq request used by both plain calls and
+        tool-calling requests.
         """
 
-        response = self._client.chat.completions.create(
-            model=self._config.model_name,
-            temperature=temperature,
-            messages=[
-                {
-                    "role": "system",
-                    "content": system_prompt,
-                },
-                {
-                    "role": "user",
-                    "content": user_prompt,
-                },
-            ],
-        )
+        kwargs = {
+            "model": self._config.model_name,
+            "temperature": temperature,
+            "messages": messages,
+        }
 
-        return response.choices[0].message.content
+        if tools:
+            kwargs["tools"] = tools
+            kwargs["tool_choice"] = "auto"
+
+        return self._client.chat.completions.create(**kwargs)
 
     def call(
         self,
@@ -105,11 +103,21 @@ class GroqClient:
         """
 
         try:
-            return self._call(
-                system_prompt=system_prompt,
-                user_prompt=user_prompt,
-                temperature=temperature,
+            response = self._call_raw(
+                messages=[
+                {
+                    "role": "system",
+                    "content": system_prompt,
+                },
+                {
+                    "role": "user",
+                    "content": user_prompt,
+                },
+            ],
+            temperature=temperature,
             )
+
+            return response.choices[0].message.content
 
         except Exception as exc:
             logger.error(
@@ -118,5 +126,87 @@ class GroqClient:
             )
 
             raise LLMCallFailed(
-                f"LLM call failed after retries: {exc}"
-            ) from exc
+        f"LLM call failed after retries: {exc}"
+    ) from exc
+    
+    def call_with_tools(
+        self,
+        *,
+        system_prompt: str,
+        user_prompt: str,
+        tools: list[dict],
+        tool_executor: Callable[[str, dict], str],
+        temperature: float = 0.2,
+    ) -> str:
+        """
+        Allow the LLM to execute one round of tool calls before producing
+        a final answer.
+        """
+
+        try:
+            messages = [
+                {
+                    "role": "system",
+                    "content": system_prompt,
+                },
+                {
+                    "role": "user",
+                    "content": user_prompt,
+                },
+            ]
+
+            first_response = self._call_raw(
+                messages=messages,
+                temperature=temperature,
+                tools=tools,
+            )
+
+            message = first_response.choices[0].message
+
+            tool_calls = getattr(message, "tool_calls", None)
+
+            if not tool_calls:
+                return message.content
+
+            messages.append(
+                {
+                    "role": "assistant",
+                    "content": message.content or "",
+                    "tool_calls": tool_calls,
+                }
+            )
+
+            for tool_call in tool_calls:
+                name = tool_call.function.name
+                arguments = json.loads(tool_call.function.arguments)
+
+                result = tool_executor(
+                    name,
+                    arguments,
+                )
+
+                messages.append(
+                    {
+                        "role": "tool",
+                        "tool_call_id": tool_call.id,
+                        "name": name,
+                        "content": result,
+                    }
+                )
+
+            final_response = self._call_raw(
+                messages=messages,
+                temperature=temperature,
+            )
+
+            return final_response.choices[0].message.content
+
+        except Exception as exc:
+            logger.error(
+                "Groq tool-calling call failed: %s",
+                exc,
+        )
+
+        raise LLMCallFailed(
+            f"LLM tool-calling call failed: {exc}"
+        ) from exc

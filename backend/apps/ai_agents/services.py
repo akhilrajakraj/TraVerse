@@ -37,6 +37,8 @@ from apps.itinerary import services as itinerary_services
 from apps.itinerary.models import ItineraryDay
 from apps.trips.models import Trip
 
+from ai.agents.schemas import WeatherForecastSchema
+
 from apps.budget import services as budget_services
 from apps.budget.models import Budget
 
@@ -134,6 +136,58 @@ def _persist_budget_estimate(
             is_ai_estimated=True,
         )
 
+def _persist_weather_forecast(
+    *,
+    trip: Trip,
+    weather_forecast: WeatherForecastSchema,
+) -> None:
+    """
+    Persist validated AI-generated weather forecasts.
+
+    Weather is attached to existing itinerary days.
+
+    Only weather-related fields are updated.
+    """
+
+    for weather_day in weather_forecast.days:
+
+        try:
+            itinerary_day = ItineraryDay.objects.get(
+                trip=trip,
+                date=weather_day.date,
+            )
+
+        except ItineraryDay.DoesNotExist:
+            #
+            # Skip weather for itinerary days that do not exist.
+            #
+            continue
+
+        itinerary_day.weather_condition = (
+            weather_day.condition
+        )
+
+        itinerary_day.weather_high_f = (
+            weather_day.high_f
+        )
+
+        itinerary_day.weather_low_f = (
+            weather_day.low_f
+        )
+
+        itinerary_day.weather_precipitation_chance = (
+            weather_day.precipitation_chance
+        )
+
+        itinerary_day.save(
+            update_fields=[
+                "weather_condition",
+                "weather_high_f",
+                "weather_low_f",
+                "weather_precipitation_chance",
+            ],
+        )
+
 def run_travel_planner(
     *,
     trip: Trip,
@@ -174,6 +228,13 @@ def run_travel_planner(
                 _persist_budget_estimate(
                     trip=trip,
                     budget_estimate=final_state["budget_estimate"],
+                )
+
+            if "weather_forecast" in final_state:
+
+                _persist_weather_forecast(
+                    trip=trip,
+                    weather_forecast=final_state["weather_forecast"],
                 )
 
     except StructuredOutputInvalid as exc:

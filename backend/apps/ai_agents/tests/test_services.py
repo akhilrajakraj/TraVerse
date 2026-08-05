@@ -35,6 +35,8 @@ from ai.agents.schemas import (
     ItineraryPlanSchema,
     BudgetEstimateSchema,
     BudgetLineItemEstimateSchema,
+    DailyWeatherSchema,
+    WeatherForecastSchema,
 )
 
 from apps.ai_agents.models import (
@@ -48,6 +50,7 @@ from apps.ai_agents.services import (
     _persist_itinerary_plan,
     run_travel_planner,
     _persist_budget_estimate,
+    _persist_weather_forecast,
 )
 
 from apps.destinations.models import Destination
@@ -669,3 +672,134 @@ class RunTravelPlannerBudgetPersistenceTests(
         mock_itinerary.assert_called_once()
 
         mock_budget.assert_called_once()
+
+class PersistWeatherForecastTests(
+    BaseServiceTestCase,
+):
+    """
+    Verify persistence of AI-generated weather forecasts.
+    """
+
+    def setUp(self):
+        super().setUp()
+
+        ItineraryDay.objects.create(
+            trip=self.trip,
+            day_number=1,
+            date=date(2026, 9, 10),
+            summary="Arrival",
+        )
+
+        self.forecast = WeatherForecastSchema(
+            days=[
+                DailyWeatherSchema(
+                    date="2026-09-10",
+                    condition="Sunny",
+                    high_f=84,
+                    low_f=72,
+                    precipitation_chance=10,
+                )
+            ]
+        )
+
+    def test_persist_weather_forecast(self):
+
+        _persist_weather_forecast(
+            trip=self.trip,
+            weather_forecast=self.forecast,
+        )
+
+        day = ItineraryDay.objects.get()
+
+        self.assertEqual(
+            day.weather_condition,
+            "Sunny",
+        )
+
+        self.assertEqual(
+            day.weather_high_f,
+            84,
+        )
+
+        self.assertEqual(
+            day.weather_low_f,
+            72,
+        )
+
+        self.assertEqual(
+            day.weather_precipitation_chance,
+            10,
+        )
+        
+class RunTravelPlannerWeatherPersistenceTests(
+    BaseServiceTestCase,
+):
+    """
+    Verify successful planning persists
+    itinerary, budget and weather.
+    """
+
+    @patch(
+        "apps.ai_agents.services._persist_weather_forecast",
+    )
+    @patch(
+        "apps.ai_agents.services._persist_budget_estimate",
+    )
+    @patch(
+        "apps.ai_agents.services._persist_itinerary_plan",
+    )
+    @patch(
+        "apps.ai_agents.services.run_planning_graph",
+    )
+    def test_weather_is_persisted(
+        self,
+        mock_graph,
+        mock_itinerary,
+        mock_budget,
+        mock_weather,
+    ):
+
+        budget = BudgetEstimateSchema(
+            line_items=[
+                BudgetLineItemEstimateSchema(
+                    category="food",
+                    description="Meals",
+                    estimated_amount=100.0,
+                )
+            ]
+        )
+
+        weather = WeatherForecastSchema(
+            days=[
+                DailyWeatherSchema(
+                    date="2026-09-10",
+                    condition="Sunny",
+                    high_f=84,
+                    low_f=72,
+                    precipitation_chance=10,
+                )
+            ]
+        )
+
+        mock_graph.return_value = {
+            "trip_title": self.trip.title,
+            "destination_names": ["Kyoto"],
+            "start_date": "2026-09-10",
+            "end_date": "2026-09-15",
+            "traveler_count": 2,
+            "trip_notes": self.trip.notes,
+            "itinerary": self.plan,
+            "budget_estimate": budget,
+            "weather_forecast": weather,
+        }
+
+        run_travel_planner(
+            trip=self.trip,
+            triggered_by=self.user,
+        )
+
+        mock_itinerary.assert_called_once()
+
+        mock_budget.assert_called_once()
+
+        mock_weather.assert_called_once()

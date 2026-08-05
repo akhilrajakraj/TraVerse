@@ -41,6 +41,38 @@ class ItineraryDay(
         max_length=255,
         blank=True,
     )
+    
+    weather_condition = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text=(
+            "AI-generated weather summary for this itinerary day."
+        ),
+    )
+
+    weather_high_f = models.PositiveSmallIntegerField(
+        null=True,
+        blank=True,
+        help_text=(
+            "Expected daytime high temperature in Fahrenheit."
+        ),
+    )
+
+    weather_low_f = models.PositiveSmallIntegerField(
+        null=True,
+        blank=True,
+        help_text=(
+            "Expected nighttime low temperature in Fahrenheit."
+        ),
+    )
+
+    weather_precipitation_chance = models.PositiveSmallIntegerField(
+        null=True,
+        blank=True,
+        help_text=(
+            "Estimated chance of precipitation (0-100)."
+        ),
+    )
 
     class Meta:
         ordering = [

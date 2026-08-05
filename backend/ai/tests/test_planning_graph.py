@@ -20,6 +20,8 @@ from ai.agents.schemas import (
     BudgetEstimateSchema,
     BudgetLineItemEstimateSchema,
     ItineraryPlanSchema,
+    DailyWeatherSchema,
+    WeatherForecastSchema,
 )
 from ai.graphs.planning_graph import (
     build_planning_graph,
@@ -40,12 +42,13 @@ def test_build_planning_graph_returns_compiled_graph():
         CompiledStateGraph,
     )
 
-
+@patch("ai.graphs.planning_graph.weather_agent")
 @patch("ai.graphs.planning_graph.budget_agent")
 @patch("ai.graphs.planning_graph.travel_planner_agent")
 def test_run_planning_graph(
     mock_travel_agent,
     mock_budget_agent,
+    mock_weather_agent,
 ):
     """
     The planning graph should delegate execution to the Travel Planner
@@ -91,6 +94,18 @@ def test_run_planning_graph(
             )
         ]
     )
+    
+    weather = WeatherForecastSchema(
+        days=[
+            DailyWeatherSchema(
+                date="2026-09-10",
+                condition="Sunny",
+                high_f=84,
+                low_f=72,
+                precipitation_chance=10,
+            )
+        ]
+    )
 
     travel_state: PlanningGraphState = {
         **state,
@@ -103,8 +118,16 @@ def test_run_planning_graph(
         **travel_state,
         "budget_estimate": budget,
     }
-
+    
     mock_budget_agent.estimate_budget.return_value = budget_state
+    
+    weather_state = {
+        **budget_state,
+        "weather_forecast": weather,
+    }
+
+    
+    mock_weather_agent.estimate_weather.return_value = weather_state
 
     result = run_planning_graph(
         state,
@@ -129,6 +152,8 @@ def test_run_planning_graph(
     assert result["itinerary"] == itinerary
     
     assert result["budget_estimate"] == budget
+    
+    assert result["weather_forecast"] == weather
 
     mock_travel_agent.plan.assert_called_once_with(
         state,
@@ -136,4 +161,8 @@ def test_run_planning_graph(
     
     mock_budget_agent.estimate_budget.assert_called_once_with(
         travel_state,   
+    )
+
+    mock_weather_agent.estimate_weather.assert_called_once_with(
+        budget_state,
     )
