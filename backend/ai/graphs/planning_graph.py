@@ -35,6 +35,7 @@ from langgraph.graph import (
 from ai.agents.budget_agent import budget_agent
 from ai.agents.travel_planner import travel_planner_agent
 from ai.agents.weather_agent import weather_agent
+from ai.agents.recommendation_agent import recommendation_agent
 from ai.graphs.state import PlanningGraphState
 
 
@@ -71,6 +72,15 @@ def _weather_agent_node(
 
     return weather_agent.estimate_weather(state)
 
+def _recommendation_agent_node(
+    state: PlanningGraphState,
+) -> PlanningGraphState:
+    """
+    Execute the Recommendation Agent.
+    """
+
+    return recommendation_agent.generate_recommendations(state)
+
 
 # ==============================================================================
 # Workflow Definition
@@ -100,6 +110,10 @@ WORKFLOW = [
     (
         "weather_agent",
         _weather_agent_node,
+    ),
+    (
+        "recommendation_agent",
+        _recommendation_agent_node,
     ),
 ]
 

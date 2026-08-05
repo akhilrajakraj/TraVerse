@@ -37,10 +37,18 @@ from apps.itinerary import services as itinerary_services
 from apps.itinerary.models import ItineraryDay
 from apps.trips.models import Trip
 
-from ai.agents.schemas import WeatherForecastSchema
+from ai.agents.schemas import (
+    RecommendationBatchSchema,
+    WeatherForecastSchema,
+)
 
 from apps.budget import services as budget_services
 from apps.budget.models import Budget
+
+from apps.recommendations import services as recommendation_services
+from apps.recommendations.models import RecommendationCategory
+
+from apps.destinations.models import Destination
 
 logger = logging.getLogger("apps.ai_agents")
 
@@ -187,6 +195,46 @@ def _persist_weather_forecast(
                 "weather_precipitation_chance",
             ],
         )
+        
+def _persist_recommendations(
+    *,
+    trip: Trip,
+    recommendations: RecommendationBatchSchema,
+) -> None:
+    """
+    Persist validated AI-generated recommendations.
+
+    Existing pending AI recommendations are replaced while preserving
+    recommendations that have already been accepted or rejected by the
+    user.
+    """
+
+    recommendation_services.clear_pending_ai_recommendations(
+        trip=trip,
+    )
+
+    for recommendation in recommendations.recommendations:
+
+        destination = Destination.objects.filter(
+            name=recommendation.destination,
+        ).first()
+
+        #
+        # Ignore recommendations whose destination cannot be resolved.
+        #
+        if destination is None:
+            continue
+
+        recommendation_services.create_recommendation(
+            trip=trip,
+            destination=destination,
+            category=RecommendationCategory(
+                recommendation.category,
+            ),
+            score=recommendation.score,
+            reason=recommendation.reason,
+            is_ai_generated=True,
+        )
 
 def run_travel_planner(
     *,
@@ -235,6 +283,13 @@ def run_travel_planner(
                 _persist_weather_forecast(
                     trip=trip,
                     weather_forecast=final_state["weather_forecast"],
+                )
+                
+            if "recommendations" in final_state:
+
+                _persist_recommendations(
+                    trip=trip,
+                    recommendations=final_state["recommendations"],
                 )
 
     except StructuredOutputInvalid as exc:

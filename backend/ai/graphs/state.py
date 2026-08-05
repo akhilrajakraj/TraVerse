@@ -19,6 +19,7 @@ from typing_extensions import NotRequired
 from ai.agents.schemas import (
     ItineraryPlanSchema,
     BudgetEstimateSchema,
+    RecommendationBatchSchema,
     WeatherForecastSchema,
 )
 
@@ -64,6 +65,8 @@ class PlanningGraphState(TypedDict):
     budget_estimate: NotRequired[BudgetEstimateSchema]
 
     weather_forecast: NotRequired[WeatherForecastSchema]
+    
+    recommendations: NotRequired[RecommendationBatchSchema]
 
     # ------------------------------------------------------------------
     # Execution Metadata

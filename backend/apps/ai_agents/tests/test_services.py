@@ -37,6 +37,8 @@ from ai.agents.schemas import (
     BudgetLineItemEstimateSchema,
     DailyWeatherSchema,
     WeatherForecastSchema,
+    RecommendationBatchSchema,
+    RecommendationItemSchema,
 )
 
 from apps.ai_agents.models import (
@@ -51,6 +53,7 @@ from apps.ai_agents.services import (
     run_travel_planner,
     _persist_budget_estimate,
     _persist_weather_forecast,
+    _persist_recommendations,
 )
 
 from apps.destinations.models import Destination
@@ -63,6 +66,11 @@ from apps.budget.models import (
 from apps.itinerary.models import (
     ItineraryDay,
     ItineraryItem,
+)
+
+from apps.recommendations.models import (
+    Recommendation,
+    RecommendationStatus,
 )
 
 from apps.trips.models import Trip
@@ -803,3 +811,204 @@ class RunTravelPlannerWeatherPersistenceTests(
         mock_budget.assert_called_once()
 
         mock_weather.assert_called_once()
+        
+class PersistRecommendationTests(
+    BaseServiceTestCase,
+):
+    """
+    Verify persistence of AI-generated recommendations.
+    """
+
+    def setUp(self):
+        super().setUp()
+
+        from ai.agents.schemas import (
+            RecommendationBatchSchema,
+            RecommendationItemSchema,
+        )
+
+        from apps.recommendations.models import (
+            Recommendation,
+            RecommendationStatus,
+        )
+
+        self.Recommendation = Recommendation
+        self.RecommendationStatus = RecommendationStatus
+
+        self.recommendations = RecommendationBatchSchema(
+            recommendations=[
+                RecommendationItemSchema(
+                    destination="Kyoto",
+                    category="attraction",
+                    score=0.95,
+                    reason="Visit Fushimi Inari early in the morning.",
+                )
+            ]
+        )
+
+    def test_existing_pending_ai_recommendations_are_replaced(
+        self,
+    ):
+        """
+        Pending AI recommendations should be replaced while accepted and
+        rejected recommendations remain.
+        """
+
+        self.Recommendation.objects.create(
+            trip=self.trip,
+            destination=self.destination,
+            category="attraction",
+            score=0.50,
+            reason="Old AI recommendation",
+            status=self.RecommendationStatus.PENDING,
+            is_ai_generated=True,
+        )
+
+        self.Recommendation.objects.create(
+            trip=self.trip,
+            destination=self.destination,
+            category="attraction",
+            score=0.80,
+            reason="Accepted recommendation",
+            status=self.RecommendationStatus.ACCEPTED,
+            is_ai_generated=True,
+        )
+
+        self.Recommendation.objects.create(
+            trip=self.trip,
+            destination=self.destination,
+            category="attraction",
+            score=0.20,
+            reason="Rejected recommendation",
+            status=self.RecommendationStatus.REJECTED,
+            is_ai_generated=True,
+        )
+
+        _persist_recommendations(
+            trip=self.trip,
+            recommendations=self.recommendations,
+        )
+
+        self.assertEqual(
+            self.Recommendation.objects.filter(
+                status=self.RecommendationStatus.PENDING,
+            ).count(),
+            1,
+        )
+
+        self.assertEqual(
+            self.Recommendation.objects.filter(
+                status=self.RecommendationStatus.ACCEPTED,
+            ).count(),
+            1,
+        )
+
+        self.assertEqual(
+            self.Recommendation.objects.filter(
+                status=self.RecommendationStatus.REJECTED,
+            ).count(),
+            1,
+        )
+
+        new_recommendation = self.Recommendation.objects.get(
+            status=self.RecommendationStatus.PENDING,
+        )
+
+        self.assertEqual(
+            new_recommendation.reason,
+            "Visit Fushimi Inari early in the morning.",
+        )
+
+        self.assertTrue(
+            new_recommendation.is_ai_generated,
+        )
+        
+class RunTravelPlannerRecommendationPersistenceTests(
+    BaseServiceTestCase,
+):
+    """
+    Verify successful planning persists itinerary, budget, weather
+    and recommendations.
+    """
+
+    @patch(
+        "apps.ai_agents.services._persist_recommendations",
+    )
+    @patch(
+        "apps.ai_agents.services._persist_weather_forecast",
+    )
+    @patch(
+        "apps.ai_agents.services._persist_budget_estimate",
+    )
+    @patch(
+        "apps.ai_agents.services._persist_itinerary_plan",
+    )
+    @patch(
+        "apps.ai_agents.services.run_planning_graph",
+    )
+    def test_recommendations_are_persisted(
+        self,
+        mock_graph,
+        mock_itinerary,
+        mock_budget,
+        mock_weather,
+        mock_recommendations,
+    ):
+        budget = BudgetEstimateSchema(
+            line_items=[
+                BudgetLineItemEstimateSchema(
+                    category="food",
+                    description="Meals",
+                    estimated_amount=100.00,
+                )
+            ]
+        )
+
+        weather = WeatherForecastSchema(
+            days=[
+                DailyWeatherSchema(
+                    date="2026-09-10",
+                    condition="Sunny",
+                    high_f=84,
+                    low_f=72,
+                    precipitation_chance=10,
+                )
+            ]
+        )
+
+        recommendations = RecommendationBatchSchema(
+            recommendations=[
+                RecommendationItemSchema(
+                    destination="Kyoto",
+                    category="attraction",
+                    score=0.95,
+                    reason="Visit Fushimi Inari Shrine.",
+                )
+            ]
+        )
+
+        mock_graph.return_value = {
+            "trip_title": self.trip.title,
+            "destination_names": ["Kyoto"],
+            "start_date": "2026-09-10",
+            "end_date": "2026-09-15",
+            "traveler_count": 2,
+            "trip_notes": self.trip.notes,
+            "itinerary": self.plan,
+            "budget_estimate": budget,
+            "weather_forecast": weather,
+            "recommendations": recommendations,
+        }
+
+        run_travel_planner(
+            trip=self.trip,
+            triggered_by=self.user,
+        )
+
+        mock_itinerary.assert_called_once()
+
+        mock_budget.assert_called_once()
+
+        mock_weather.assert_called_once()
+
+        mock_recommendations.assert_called_once()

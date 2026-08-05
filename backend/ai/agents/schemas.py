@@ -216,3 +216,96 @@ class WeatherForecastSchema(BaseModel):
         ...,
         min_length=1,
     )
+    
+# ==============================================================================
+# Recommendation Schemas
+# ==============================================================================
+
+
+class RecommendationItemSchema(BaseModel):
+    """
+    Represents a single AI-generated travel recommendation.
+
+    This schema intentionally remains independent of Django models.
+    Recommendation lifecycle state is managed exclusively by the
+    Recommendations application.
+    """
+
+    destination: str = Field(
+        ...,
+        min_length=1,
+        max_length=100,
+    )
+
+    category: str = Field(
+        ...,
+        pattern=(
+            r"^(restaurant|attraction|hotel|shopping|"
+            r"experience|hidden_gem)$"
+        ),
+    )
+
+    score: float = Field(
+        ...,
+        ge=0,
+        le=1,
+    )
+
+    reason: str = Field(
+        ...,
+        min_length=1,
+        max_length=500,
+    )
+
+    @field_validator("destination")
+    @classmethod
+    def validate_destination(
+        cls,
+        value: str,
+    ) -> str:
+        """
+        Prevent blank destination names.
+        """
+
+        cleaned = value.strip()
+
+        if not cleaned:
+            raise ValueError(
+                "destination must not be blank."
+            )
+
+        return cleaned
+
+    @field_validator("reason")
+    @classmethod
+    def validate_reason(
+        cls,
+        value: str,
+    ) -> str:
+        """
+        Prevent blank recommendation reasons.
+        """
+
+        cleaned = value.strip()
+
+        if not cleaned:
+            raise ValueError(
+                "reason must not be blank."
+            )
+
+        return cleaned
+
+
+class RecommendationBatchSchema(BaseModel):
+    """
+    Complete AI-generated recommendation batch.
+
+    Recommendation persistence is handled by the Django
+    Recommendations application.
+    """
+
+    recommendations: list[RecommendationItemSchema] = Field(
+        ...,
+        min_length=1,
+        max_length=50,
+    )
