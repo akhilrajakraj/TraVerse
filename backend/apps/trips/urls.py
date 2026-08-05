@@ -8,6 +8,7 @@ from apps.trips.views import (
     TripListCreateView,
     TripRetrieveUpdateDestroyView,
     TripStatusUpdateView,
+    TripPackingListView,
 )
 
 app_name = "trips"
@@ -27,5 +28,10 @@ urlpatterns = [
         "<uuid:pk>/status/",
         TripStatusUpdateView.as_view(),
         name="trip-status",
+    ),
+    path(
+        "<uuid:pk>/packing/",
+        TripPackingListView.as_view(),
+        name="trip-packing-list",
     ),
 ]

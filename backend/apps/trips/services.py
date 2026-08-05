@@ -22,6 +22,8 @@ from apps.trips.exceptions import (
 from apps.trips.models import (
     Trip,
     TripStatus,
+    PackingItem,
+    PackingCategory,
 )
 
 
@@ -160,3 +162,45 @@ def transition_trip_status(
     )
 
     return trip
+
+# =====================================================================
+# PACKING ITEMS
+# =====================================================================
+
+
+def create_packing_item(
+    *,
+    trip: Trip,
+    category: PackingCategory,
+    item: str,
+    quantity: int,
+    reason: str,
+    is_ai_generated: bool = True,
+) -> PackingItem:
+    """
+    Create a packing item for a trip.
+    """
+
+    return PackingItem.objects.create(
+        trip=trip,
+        category=category,
+        item=item,
+        quantity=quantity,
+        reason=reason,
+        is_ai_generated=is_ai_generated,
+    )
+
+
+def clear_ai_generated_packing_items(
+    *,
+    trip: Trip,
+) -> None:
+    """
+    Remove previously generated AI packing items.
+
+    User-created packing items remain untouched.
+    """
+
+    trip.packing_items.filter(
+        is_ai_generated=True,
+    ).delete()

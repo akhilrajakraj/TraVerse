@@ -36,6 +36,7 @@ from ai.agents.budget_agent import budget_agent
 from ai.agents.travel_planner import travel_planner_agent
 from ai.agents.weather_agent import weather_agent
 from ai.agents.recommendation_agent import recommendation_agent
+from ai.agents.packing_agent import packing_agent
 from ai.graphs.state import PlanningGraphState
 
 
@@ -81,6 +82,15 @@ def _recommendation_agent_node(
 
     return recommendation_agent.generate_recommendations(state)
 
+def _packing_agent_node(
+    state: PlanningGraphState,
+) -> PlanningGraphState:
+    """
+    Execute the Packing Agent.
+    """
+
+    return packing_agent.generate_packing_list(state)
+
 
 # ==============================================================================
 # Workflow Definition
@@ -114,6 +124,10 @@ WORKFLOW = [
     (
         "recommendation_agent",
         _recommendation_agent_node,
+    ),
+    (
+        "packing_agent",
+        _packing_agent_node,
     ),
 ]
 

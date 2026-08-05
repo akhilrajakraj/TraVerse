@@ -40,6 +40,7 @@ from apps.trips.models import Trip
 from ai.agents.schemas import (
     RecommendationBatchSchema,
     WeatherForecastSchema,
+    PackingListSchema,
 )
 
 from apps.budget import services as budget_services
@@ -49,6 +50,12 @@ from apps.recommendations import services as recommendation_services
 from apps.recommendations.models import RecommendationCategory
 
 from apps.destinations.models import Destination
+
+from apps.trips import services as trip_services
+from apps.trips.models import (
+    PackingCategory,
+    Trip,
+)
 
 logger = logging.getLogger("apps.ai_agents")
 
@@ -236,6 +243,32 @@ def _persist_recommendations(
             is_ai_generated=True,
         )
 
+def _persist_packing_list(
+    *,
+    trip: Trip,
+    packing_list: PackingListSchema,
+) -> None:
+    """
+    Persist validated AI-generated packing items.
+
+    Existing AI-generated packing items are replaced.
+    """
+
+    trip_services.clear_ai_generated_packing_items(
+        trip=trip,
+    )
+
+    for item in packing_list.items:
+
+        trip_services.create_packing_item(
+            trip=trip,
+            category=PackingCategory(item.category),
+            item=item.item,
+            quantity=item.quantity,
+            reason=item.reason,
+            is_ai_generated=True,
+        )
+
 def run_travel_planner(
     *,
     trip: Trip,
@@ -290,6 +323,13 @@ def run_travel_planner(
                 _persist_recommendations(
                     trip=trip,
                     recommendations=final_state["recommendations"],
+                )
+                
+            if "packing_list" in final_state:
+
+                _persist_packing_list(
+                    trip=trip,
+                    packing_list=final_state["packing_list"],
                 )
 
     except StructuredOutputInvalid as exc:

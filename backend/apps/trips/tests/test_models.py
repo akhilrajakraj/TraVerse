@@ -11,6 +11,8 @@ from apps.destinations.models import Destination
 from apps.trips.models import (
     Trip,
     TripStatus,
+    PackingItem,
+    PackingCategory,
 )
 
 User = get_user_model()
@@ -108,4 +110,104 @@ class TripModelTests(TestCase):
 
         self.assertIsNotNone(
             self.trip.id,
+        )
+
+class PackingItemModelTests(TestCase):
+    """
+    Test suite for the PackingItem model.
+    """
+
+    def setUp(self):
+        self.user = User.objects.create_user(
+            email="traveler@example.com",
+            password="Password123!",
+        )
+
+        self.trip = Trip.objects.create(
+            user=self.user,
+            title="Japan Vacation",
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=4),
+        )
+
+        self.item = PackingItem.objects.create(
+            trip=self.trip,
+            category=PackingCategory.CLOTHING,
+            item="Rain Jacket",
+            quantity=1,
+            reason="Rain expected during the trip.",
+        )
+
+    def test_packing_item_creation(self):
+        """
+        Verify a packing item is created successfully.
+        """
+
+        self.assertEqual(
+            PackingItem.objects.count(),
+            1,
+        )
+
+    def test_default_is_ai_generated(self):
+        """
+        Verify packing items default to AI generated.
+        """
+
+        self.assertTrue(
+            self.item.is_ai_generated,
+        )
+
+    def test_string_representation(self):
+        """
+        Verify the model string representation.
+        """
+
+        self.assertEqual(
+            str(self.item),
+            "Rain Jacket (x1)",
+        )
+
+    def test_trip_relationship(self):
+        """
+        Verify the packing item belongs to the correct trip.
+        """
+
+        self.assertEqual(
+            self.item.trip,
+            self.trip,
+        )
+
+        self.assertEqual(
+            self.trip.packing_items.count(),
+            1,
+        )
+
+    def test_category_is_stored(self):
+        """
+        Verify the packing category is persisted correctly.
+        """
+
+        self.assertEqual(
+            self.item.category,
+            PackingCategory.CLOTHING,
+        )
+
+    def test_quantity_is_stored(self):
+        """
+        Verify the quantity is persisted correctly.
+        """
+
+        self.assertEqual(
+            self.item.quantity,
+            1,
+        )
+
+    def test_reason_is_stored(self):
+        """
+        Verify the recommendation reason is persisted.
+        """
+
+        self.assertEqual(
+            self.item.reason,
+            "Rain expected during the trip.",
         )

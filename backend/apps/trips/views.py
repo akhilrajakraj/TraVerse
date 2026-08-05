@@ -8,9 +8,15 @@ from rest_framework import generics, permissions, response, status
 from rest_framework.views import APIView
 
 from apps.trips import services
-from apps.trips.models import Trip
+from apps.trips.models import (
+    Trip,
+    PackingItem,
+)
 from apps.trips.permissions import IsTripOwner
-from apps.trips.serializers import TripSerializer
+from apps.trips.serializers import (
+    TripSerializer,
+    PackingItemSerializer,
+)
 
 
 class TripListCreateView(
@@ -117,5 +123,44 @@ class TripStatusUpdateView(APIView):
             TripSerializer(
                 trip,
             ).data,
+            status=status.HTTP_200_OK,
+        )
+
+class TripPackingListView(APIView):
+    """
+    Return the packing list for a trip.
+    """
+
+    permission_classes = (
+        permissions.IsAuthenticated,
+    )
+
+    def get(
+        self,
+        request,
+        pk,
+    ):
+        trip = get_object_or_404(
+            Trip,
+            pk=pk,
+            user=request.user,
+        )
+
+        queryset = (
+            trip.packing_items
+            .all()
+            .order_by(
+                "category",
+                "item",
+            )
+        )
+
+        serializer = PackingItemSerializer(
+            queryset,
+            many=True,
+        )
+
+        return response.Response(
+            serializer.data,
             status=status.HTTP_200_OK,
         )

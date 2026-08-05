@@ -21,6 +21,7 @@ from ai.agents.schemas import (
     BudgetEstimateSchema,
     RecommendationBatchSchema,
     WeatherForecastSchema,
+    PackingListSchema,
 )
 
 
@@ -67,6 +68,8 @@ class PlanningGraphState(TypedDict):
     weather_forecast: NotRequired[WeatherForecastSchema]
     
     recommendations: NotRequired[RecommendationBatchSchema]
+    
+    packing_list: NotRequired[PackingListSchema]
 
     # ------------------------------------------------------------------
     # Execution Metadata

@@ -13,6 +13,8 @@ from rest_framework.test import APITestCase
 from apps.trips.models import (
     Trip,
     TripStatus,
+    PackingItem,
+    PackingCategory,
 )
 
 User = get_user_model()
@@ -182,4 +184,127 @@ class TripViewTests(APITestCase):
         self.assertEqual(
             response.status_code,
             status.HTTP_400_BAD_REQUEST,
+        )
+        
+class TripPackingListViewTests(APITestCase):
+    """
+    Test suite for TripPackingListView.
+    """
+
+    def setUp(self):
+        self.user = User.objects.create_user(
+            email="traveler@example.com",
+            password="Password123!",
+        )
+
+        self.other_user = User.objects.create_user(
+            email="other@example.com",
+            password="Password123!",
+        )
+
+        self.trip = Trip.objects.create(
+            user=self.user,
+            title="Japan Vacation",
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=5),
+        )
+
+        PackingItem.objects.create(
+            trip=self.trip,
+            category=PackingCategory.CLOTHING,
+            item="Rain Jacket",
+            quantity=1,
+            reason="Expected rain.",
+        )
+
+        self.url = reverse(
+            "trips:trip-packing-list",
+            kwargs={
+                "pk": self.trip.pk,
+            },
+        )
+
+    def test_owner_receives_packing_list(self):
+        """
+        The trip owner should receive the generated packing list.
+        """
+
+        self.client.force_authenticate(
+            user=self.user,
+        )
+
+        response = self.client.get(
+            self.url,
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+        )
+
+        self.assertEqual(
+            len(response.data),
+            1,
+        )
+
+        self.assertEqual(
+            response.data[0]["item"],
+            "Rain Jacket",
+        )
+
+    def test_other_user_receives_404(self):
+        """
+        Users should not access another user's packing list.
+        """
+
+        self.client.force_authenticate(
+            user=self.other_user,
+        )
+
+        response = self.client.get(
+            self.url,
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_404_NOT_FOUND,
+        )
+
+    def test_unauthenticated_request(self):
+        """
+        Authentication is required.
+        """
+
+        response = self.client.get(
+            self.url,
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_401_UNAUTHORIZED,
+        )
+
+    def test_empty_packing_list(self):
+        """
+        Trips without packing items should return an empty list.
+        """
+
+        PackingItem.objects.all().delete()
+
+        self.client.force_authenticate(
+            user=self.user,
+        )
+
+        response = self.client.get(
+            self.url,
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+        )
+
+        self.assertEqual(
+            response.data,
+            [],
         )

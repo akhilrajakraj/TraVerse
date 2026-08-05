@@ -39,6 +39,8 @@ from ai.agents.schemas import (
     WeatherForecastSchema,
     RecommendationBatchSchema,
     RecommendationItemSchema,
+    PackingItemSchema,
+    PackingListSchema,
 )
 
 from apps.ai_agents.models import (
@@ -54,9 +56,18 @@ from apps.ai_agents.services import (
     _persist_budget_estimate,
     _persist_weather_forecast,
     _persist_recommendations,
+    _persist_packing_list,
 )
 
 from apps.destinations.models import Destination
+
+from apps.trips.models import Trip
+
+from apps.trips.models import (
+    Trip,
+    PackingItem,
+    PackingCategory,
+)
 
 from apps.budget.models import (
     Budget,
@@ -1012,3 +1023,197 @@ class RunTravelPlannerRecommendationPersistenceTests(
         mock_weather.assert_called_once()
 
         mock_recommendations.assert_called_once()
+    
+class PersistPackingListTests(
+    BaseServiceTestCase,
+):
+    """
+    Verify persistence of AI-generated packing items.
+    """
+
+    def setUp(self):
+        super().setUp()
+
+        self.packing_list = PackingListSchema(
+            items=[
+                PackingItemSchema(
+                    category="clothing",
+                    item="Rain Jacket",
+                    quantity=1,
+                    reason="Expected rain.",
+                ),
+                PackingItemSchema(
+                    category="documents",
+                    item="Passport",
+                    quantity=1,
+                    reason="International travel.",
+                ),
+            ]
+        )
+
+    def test_existing_ai_packing_items_are_replaced(
+        self,
+    ):
+        """
+        Existing AI-generated packing items should be replaced
+        while manual packing items remain.
+        """
+
+        PackingItem.objects.create(
+            trip=self.trip,
+            category=PackingCategory.CLOTHING,
+            item="Old Jacket",
+            quantity=1,
+            reason="Old AI item",
+            is_ai_generated=True,
+        )
+
+        PackingItem.objects.create(
+            trip=self.trip,
+            category=PackingCategory.CLOTHING,
+            item="Manual Backpack",
+            quantity=1,
+            reason="User item",
+            is_ai_generated=False,
+        )
+
+        _persist_packing_list(
+            trip=self.trip,
+            packing_list=self.packing_list,
+        )
+
+        self.assertEqual(
+            PackingItem.objects.filter(
+                is_ai_generated=True,
+            ).count(),
+            2,
+        )
+
+        self.assertEqual(
+            PackingItem.objects.filter(
+                is_ai_generated=False,
+            ).count(),
+            1,
+        )
+
+        jacket = PackingItem.objects.get(
+            item="Rain Jacket",
+        )
+
+        self.assertEqual(
+            jacket.category,
+            PackingCategory.CLOTHING,
+        )
+
+        self.assertEqual(
+            jacket.quantity,
+            1,
+        )
+
+        self.assertEqual(
+            jacket.reason,
+            "Expected rain.",
+        )
+
+class RunTravelPlannerPackingPersistenceTests(
+    BaseServiceTestCase,
+):
+    """
+    Verify successful planning persists packing items.
+    """
+
+    @patch(
+        "apps.ai_agents.services._persist_packing_list",
+    )
+    @patch(
+        "apps.ai_agents.services._persist_recommendations",
+    )
+    @patch(
+        "apps.ai_agents.services._persist_weather_forecast",
+    )
+    @patch(
+        "apps.ai_agents.services._persist_budget_estimate",
+    )
+    @patch(
+        "apps.ai_agents.services._persist_itinerary_plan",
+    )
+    @patch(
+        "apps.ai_agents.services.run_planning_graph",
+    )
+    def test_packing_list_is_persisted(
+        self,
+        mock_graph,
+        mock_itinerary,
+        mock_budget,
+        mock_weather,
+        mock_recommendations,
+        mock_packing,
+    ):
+        budget = BudgetEstimateSchema(
+            line_items=[
+                BudgetLineItemEstimateSchema(
+                    category="food",
+                    description="Meals",
+                    estimated_amount=100.00,
+                )
+            ]
+        )
+
+        weather = WeatherForecastSchema(
+            days=[
+                DailyWeatherSchema(
+                    date="2026-09-10",
+                    condition="Sunny",
+                    high_f=84,
+                    low_f=72,
+                    precipitation_chance=10,
+                )
+            ]
+        )
+
+        recommendations = RecommendationBatchSchema(
+            recommendations=[
+                RecommendationItemSchema(
+                    destination="Kyoto",
+                    category="attraction",
+                    score=0.95,
+                    reason="Visit Fushimi Inari Shrine.",
+                )
+            ]
+        )
+
+        packing = PackingListSchema(
+            items=[
+                PackingItemSchema(
+                    category="clothing",
+                    item="Rain Jacket",
+                    quantity=1,
+                    reason="Expected rain.",
+                )
+            ]
+        )
+
+        mock_graph.return_value = {
+            "trip_title": self.trip.title,
+            "destination_names": ["Kyoto"],
+            "start_date": "2026-09-10",
+            "end_date": "2026-09-15",
+            "traveler_count": 2,
+            "trip_notes": self.trip.notes,
+            "itinerary": self.plan,
+            "budget_estimate": budget,
+            "weather_forecast": weather,
+            "recommendations": recommendations,
+            "packing_list": packing,
+        }
+
+        run_travel_planner(
+            trip=self.trip,
+            triggered_by=self.user,
+        )
+
+        mock_itinerary.assert_called_once()
+        mock_budget.assert_called_once()
+        mock_weather.assert_called_once()
+        mock_recommendations.assert_called_once()
+        mock_packing.assert_called_once()

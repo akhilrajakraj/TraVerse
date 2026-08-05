@@ -5,7 +5,10 @@ Serializers for the Trips application.
 from rest_framework import serializers
 
 from apps.destinations.serializers import DestinationSerializer
-from apps.trips.models import Trip
+from apps.trips.models import (
+    Trip,
+    PackingItem,
+)
 
 
 class TripSerializer(serializers.ModelSerializer):
@@ -55,3 +58,24 @@ class TripSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
         )
+
+class PackingItemSerializer(serializers.ModelSerializer):
+    """
+    Read-only serializer for AI-generated packing items.
+    """
+
+    class Meta:
+        model = PackingItem
+
+        fields = (
+            "id",
+            "category",
+            "item",
+            "quantity",
+            "reason",
+            "is_ai_generated",
+            "created_at",
+            "updated_at",
+        )
+
+        read_only_fields = fields

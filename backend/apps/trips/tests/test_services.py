@@ -15,9 +15,16 @@ from apps.trips.exceptions import (
 from apps.trips.models import (
     Trip,
     TripStatus,
+    PackingItem,
+    PackingCategory,
+    
 )
 from apps.trips import services
 
+from apps.trips.services import (
+    create_packing_item,
+    clear_ai_generated_packing_items,
+)
 
 User = get_user_model()
 
@@ -157,3 +164,132 @@ class TripServiceTests(TestCase):
                 trip=trip,
                 new_status=TripStatus.COMPLETED,
             )
+    
+class PackingItemServiceTests(TestCase):
+    """
+    Test suite for packing item service functions.
+    """
+
+    def setUp(self):
+        self.user = User.objects.create_user(
+            email="traveler@example.com",
+            password="Password123!",
+        )
+
+        self.trip = Trip.objects.create(
+            user=self.user,
+            title="Japan Vacation",
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=5),
+        )
+
+    def test_create_packing_item(self):
+        """
+        Verify create_packing_item creates a new PackingItem.
+        """
+
+        item = create_packing_item(
+            trip=self.trip,
+            category=PackingCategory.CLOTHING,
+            item="Rain Jacket",
+            quantity=1,
+            reason="Expected rain.",
+        )
+
+        self.assertEqual(
+            PackingItem.objects.count(),
+            1,
+        )
+
+        self.assertEqual(
+            item.trip,
+            self.trip,
+        )
+
+        self.assertEqual(
+            item.category,
+            PackingCategory.CLOTHING,
+        )
+
+        self.assertEqual(
+            item.item,
+            "Rain Jacket",
+        )
+
+        self.assertEqual(
+            item.quantity,
+            1,
+        )
+
+        self.assertEqual(
+            item.reason,
+            "Expected rain.",
+        )
+
+        self.assertTrue(
+            item.is_ai_generated,
+        )
+
+    def test_clear_ai_generated_packing_items(self):
+        """
+        AI-generated packing items should be deleted.
+        """
+
+        create_packing_item(
+            trip=self.trip,
+            category=PackingCategory.CLOTHING,
+            item="Rain Jacket",
+            quantity=1,
+            reason="Expected rain.",
+        )
+
+        clear_ai_generated_packing_items(
+            trip=self.trip,
+        )
+
+        self.assertEqual(
+            PackingItem.objects.count(),
+            0,
+        )
+
+    def test_manual_packing_items_are_preserved(self):
+        """
+        User-created packing items should not be removed.
+        """
+
+        PackingItem.objects.create(
+            trip=self.trip,
+            category=PackingCategory.CLOTHING,
+            item="Backpack",
+            quantity=1,
+            reason="User item",
+            is_ai_generated=False,
+        )
+
+        create_packing_item(
+            trip=self.trip,
+            category=PackingCategory.DOCUMENTS,
+            item="Passport",
+            quantity=1,
+            reason="Required.",
+        )
+
+        clear_ai_generated_packing_items(
+            trip=self.trip,
+        )
+
+        self.assertEqual(
+            PackingItem.objects.count(),
+            1,
+        )
+
+        remaining = PackingItem.objects.get()
+
+        self.assertFalse(
+            remaining.is_ai_generated,
+        )
+
+        self.assertEqual(
+            remaining.item,
+            "Backpack",
+        )
