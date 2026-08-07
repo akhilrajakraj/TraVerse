@@ -60,4 +60,8 @@ urlpatterns = [
         "api/ai_agents/",
         include("apps.ai_agents.urls"),
     ),
+    path(
+        "api/chat/",
+        include("apps.chat.urls"),
+    ),
 ]

@@ -144,3 +144,16 @@ class TestMemorySummarizer:
         )
 
         assert summary == "Compact Conversation Summary"
+        
+    def test_empty_summary_is_returned(self) -> None:
+        """
+        Empty summaries should be returned unchanged.
+        """
+
+        self.client.call.return_value = ""
+
+        summary = self.summarizer.summarize(
+        conversation="Conversation History",
+        )
+
+        assert summary == ""

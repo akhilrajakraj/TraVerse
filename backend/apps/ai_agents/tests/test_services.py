@@ -1217,3 +1217,357 @@ class RunTravelPlannerPackingPersistenceTests(
         mock_weather.assert_called_once()
         mock_recommendations.assert_called_once()
         mock_packing.assert_called_once()
+        
+class AttachConversationContextTests(BaseServiceTestCase):
+    """
+    Tests for attaching persisted chat history to the planning graph.
+    """
+
+    @patch("apps.ai_agents.services.ChatService.get_active_session")
+    def test_returns_original_state_when_no_session(
+        self,
+        mock_get_session,
+    ):
+        from apps.ai_agents.services import (
+            _attach_conversation_context,
+        )
+
+        mock_get_session.return_value = None
+
+        state = {
+            "trip_title": self.trip.title,
+        }
+
+        result = _attach_conversation_context(
+            trip=self.trip,
+            state=state,
+        )
+
+        self.assertEqual(result, state)
+        self.assertNotIn("conversation_context", result)
+
+    @patch("apps.ai_agents.services.ConversationManager")
+    @patch("apps.ai_agents.services.ConversationMemoryAdapter.build_memory")
+    @patch("apps.ai_agents.services.ChatService.get_active_session")
+    def test_conversation_context_added(
+        self,
+        mock_get_session,
+        mock_build_memory,
+        mock_manager,
+    ):
+        from apps.ai_agents.services import (
+            _attach_conversation_context,
+        )
+
+        session = MagicMock()
+        memory = MagicMock()
+
+        memory.transcript.return_value = (
+            "Conversation Summary"
+        )
+
+        mock_get_session.return_value = session
+
+        mock_build_memory.return_value = memory
+
+        manager = MagicMock()
+
+        manager.optimize_memory.return_value = memory
+
+        mock_manager.return_value = manager
+
+        state = {
+            "trip_title": self.trip.title,
+        }
+
+        result = _attach_conversation_context(
+            trip=self.trip,
+            state=state,
+        )
+
+        mock_build_memory.assert_called_once_with(
+            session=session,
+        )
+
+        manager.optimize_memory.assert_called_once_with(
+            memory,
+        )
+
+        self.assertEqual(
+            result["conversation_context"],
+            "Conversation Summary",
+        )
+        
+class RunTravelPlannerConversationTests(BaseServiceTestCase):
+    """
+    Verify assistant responses are persisted.
+    """
+
+    @patch("apps.ai_agents.services.ChatService.add_assistant_message")
+    @patch("apps.ai_agents.services.ChatService.get_active_session")
+    @patch("apps.ai_agents.services.ConversationManager")
+    @patch("apps.ai_agents.services.ConversationMemoryAdapter.build_memory")
+    @patch("apps.ai_agents.services._persist_itinerary_plan")
+    @patch("apps.ai_agents.services.run_planning_graph")
+    def test_assistant_response_saved(
+        self,
+        mock_graph,
+        mock_persist,
+        mock_build_memory,
+        mock_manager,
+        mock_get_session,
+        mock_add_message,
+    ):
+        session = MagicMock()
+
+        mock_get_session.return_value = session
+
+        memory = MagicMock()
+
+        memory.transcript.return_value = "history"
+
+        mock_build_memory.return_value = memory
+
+        manager = MagicMock()
+
+        manager.optimize_memory.return_value = memory
+
+        mock_manager.return_value = manager
+
+        mock_graph.return_value = {
+            "trip_title": self.trip.title,
+            "destination_names": ["Kyoto"],
+            "start_date": "2026-09-10",
+            "end_date": "2026-09-15",
+            "traveler_count": 2,
+            "trip_notes": self.trip.notes,
+            "itinerary": self.plan,
+            "assistant_response": "Here is your itinerary.",
+        }
+
+        run_travel_planner(
+            trip=self.trip,
+            triggered_by=self.user,
+        )
+
+        mock_add_message.assert_called_once_with(
+            session=session,
+            content="Here is your itinerary.",
+        )
+
+    @patch("apps.ai_agents.services.ChatService.add_assistant_message")
+    @patch("apps.ai_agents.services.ChatService.get_active_session")
+    @patch("apps.ai_agents.services.ConversationManager")
+    @patch("apps.ai_agents.services.ConversationMemoryAdapter.build_memory")
+    @patch("apps.ai_agents.services._persist_itinerary_plan")
+    @patch("apps.ai_agents.services.run_planning_graph")
+    def test_missing_assistant_response_ignored(
+        self,
+        mock_graph,
+        mock_persist,
+        mock_build_memory,
+        mock_manager,
+        mock_get_session,
+        mock_add_message,
+    ):
+        session = MagicMock()
+
+        mock_get_session.return_value = session
+
+        memory = MagicMock()
+
+        memory.transcript.return_value = "history"
+
+        mock_build_memory.return_value = memory
+
+        manager = MagicMock()
+
+        manager.optimize_memory.return_value = memory
+
+        mock_manager.return_value = manager
+
+        mock_graph.return_value = {
+            "trip_title": self.trip.title,
+            "destination_names": ["Kyoto"],
+            "start_date": "2026-09-10",
+            "end_date": "2026-09-15",
+            "traveler_count": 2,
+            "trip_notes": self.trip.notes,
+            "itinerary": self.plan,
+        }
+
+        run_travel_planner(
+            trip=self.trip,
+            triggered_by=self.user,
+        )
+
+        mock_add_message.assert_not_called()
+        
+class GenerateChatReplyTests(BaseServiceTestCase):
+    """
+    Verify the conversational AI entry point.
+    """
+
+    @patch("apps.ai_agents.services.ChatAgent")
+    @patch("apps.ai_agents.services.ConversationManager")
+    @patch("apps.ai_agents.services.ConversationMemoryAdapter.build_memory")
+    @patch("apps.ai_agents.services.ChatService")
+    def test_generate_chat_reply(
+        self,
+        mock_chat_service,
+        mock_build_memory,
+        mock_manager,
+        mock_chat_agent,
+    ):
+        """
+        User message should be persisted, conversation optimized,
+        assistant invoked and assistant reply persisted.
+        """
+
+        from apps.ai_agents.services import generate_chat_reply
+
+        session = MagicMock()
+        memory = MagicMock()
+
+        memory.transcript.return_value = "Conversation History"
+
+        mock_chat_service.get_or_create_active_session.return_value = session
+
+        mock_build_memory.return_value = memory
+
+        manager = MagicMock()
+        manager.optimize_memory.return_value = memory
+        mock_manager.return_value = manager
+
+        agent = MagicMock()
+        agent.reply.return_value = "Welcome to Japan!"
+        mock_chat_agent.return_value = agent
+
+        response = generate_chat_reply(
+            trip=self.trip,
+            user_message="Plan my trip.",
+        )
+
+        mock_chat_service.get_or_create_active_session.assert_called_once_with(
+            trip=self.trip,
+        )
+
+        mock_chat_service.add_user_message.assert_called_once_with(
+            session=session,
+            content="Plan my trip.",
+        )
+
+        mock_build_memory.assert_called_once_with(
+            session=session,
+        )
+
+        manager.optimize_memory.assert_called_once_with(
+            memory,
+        )
+
+        agent.reply.assert_called_once()
+
+        mock_chat_service.add_assistant_message.assert_called_once_with(
+            session=session,
+            content="Welcome to Japan!",
+        )
+
+        self.assertEqual(
+            response,
+            "Welcome to Japan!",
+        )
+
+    @patch("apps.ai_agents.services.ChatAgent")
+    @patch("apps.ai_agents.services.ConversationManager")
+    @patch("apps.ai_agents.services.ConversationMemoryAdapter.build_memory")
+    @patch("apps.ai_agents.services.ChatService")
+    def test_generate_chat_reply_without_history(
+        self,
+        mock_chat_service,
+        mock_build_memory,
+        mock_manager,
+        mock_chat_agent,
+    ):
+        """
+        Empty conversations should still produce an assistant reply.
+        """
+
+        from apps.ai_agents.services import generate_chat_reply
+
+        session = MagicMock()
+        memory = MagicMock()
+
+        memory.transcript.return_value = ""
+
+        mock_chat_service.get_or_create_active_session.return_value = session
+
+        mock_build_memory.return_value = memory
+
+        manager = MagicMock()
+        manager.optimize_memory.return_value = memory
+        mock_manager.return_value = manager
+
+        agent = MagicMock()
+        agent.reply.return_value = "Hello!"
+        mock_chat_agent.return_value = agent
+
+        response = generate_chat_reply(
+            trip=self.trip,
+            user_message="Hi",
+        )
+
+        self.assertEqual(
+            response,
+            "Hello!",
+        )
+
+        mock_chat_service.add_assistant_message.assert_called_once()
+
+    @patch("apps.ai_agents.services.ChatAgent")
+    @patch("apps.ai_agents.services.ConversationManager")
+    @patch("apps.ai_agents.services.ConversationMemoryAdapter.build_memory")
+    @patch("apps.ai_agents.services.ChatService")
+    def test_generate_chat_reply_strips_response(
+        self,
+        mock_chat_service,
+        mock_build_memory,
+        mock_manager,
+        mock_chat_agent,
+    ):
+        """
+        Assistant responses should be stripped before persistence.
+        """
+
+        from apps.ai_agents.services import generate_chat_reply
+
+        session = MagicMock()
+        memory = MagicMock()
+
+        memory.transcript.return_value = ""
+
+        mock_chat_service.get_or_create_active_session.return_value = session
+
+        mock_build_memory.return_value = memory
+
+        manager = MagicMock()
+        manager.optimize_memory.return_value = memory
+        mock_manager.return_value = manager
+
+        agent = MagicMock()
+        agent.reply.return_value = "   Welcome!   "
+        mock_chat_agent.return_value = agent
+
+        response = generate_chat_reply(
+            trip=self.trip,
+            user_message="Hello",
+        )
+
+        mock_chat_service.add_assistant_message.assert_called_once_with(
+            session=session,
+            content="Welcome!",
+        )
+
+        self.assertEqual(
+            response,
+            "Welcome!",
+        )

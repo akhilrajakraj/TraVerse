@@ -21,6 +21,7 @@ from django.utils import timezone
 from decimal import Decimal
 
 from django.db import transaction
+from requests import session
 
 from ai.exceptions import (
     LLMCallFailed,
@@ -57,6 +58,14 @@ from apps.trips.models import (
     Trip,
 )
 
+from ai.memory.conversation_manager import ConversationManager
+
+from apps.chat.adapters import ConversationMemoryAdapter
+from apps.chat.services import ChatService
+
+from ai.agents.chat_agent import ChatAgent
+from apps.chat.models import ChatSession
+
 logger = logging.getLogger("apps.ai_agents")
 
 
@@ -81,6 +90,35 @@ def _build_initial_state(
         "traveler_count": trip.traveler_count,
         "trip_notes": trip.notes or "",
     }
+    
+def _attach_conversation_context(
+    *,
+    trip: Trip,
+    state: dict,
+) -> dict:
+    
+    session = ChatService.get_active_session(
+        trip=trip,
+    )
+    
+    if session is None:
+        return state
+    
+    memory = ConversationMemoryAdapter.build_memory(
+        session=session,
+    )
+    
+    manager = ConversationManager()
+    
+    memory = manager.optimize_memory(
+        memory,
+    )
+    
+    state["conversation_context"] = (
+        memory.transcript()
+    )
+    
+    return state
 
 
 def _persist_itinerary_plan(
@@ -281,6 +319,12 @@ def run_travel_planner(
     initial_state = _build_initial_state(
         trip,
     )
+    
+    initial_state = _attach_conversation_context(
+        trip=trip,
+        state=initial_state,
+    )
+    
 
     agent_run = AgentRun.objects.create(
         trip=trip,
@@ -296,6 +340,23 @@ def run_travel_planner(
         final_state = run_planning_graph(
             initial_state,
         )
+        
+        session = ChatService.get_active_session(
+            trip=trip,
+        )
+
+        assistant_response = final_state.get(
+            "assistant_response",
+        )
+
+        if (
+            session is not None
+            and assistant_response
+        ):
+            ChatService.add_assistant_message(
+                session=session,
+                content=assistant_response,
+            )
         
         with transaction.atomic():
 
@@ -371,3 +432,85 @@ def run_travel_planner(
         )
 
     return agent_run
+
+def generate_chat_reply(
+    *,
+    trip: Trip,
+    user_message: str,
+) -> str:
+    """
+    Execute a conversational AI request without running the
+    travel planning graph.
+
+    Workflow
+
+    User Message
+        ↓
+    Persist user message
+        ↓
+    Build conversation memory
+        ↓
+    Optimize memory
+        ↓
+    Chat Agent
+        ↓
+    Persist assistant message
+        ↓
+    Return response
+    """
+
+    #
+    # Ensure an active conversation exists.
+    #
+    session = ChatService.get_or_create_active_session(
+        trip=trip,
+    )
+
+    #
+    # Persist the user's message.
+    #
+    ChatService.add_user_message(
+        session=session,
+        content=user_message,
+    )
+
+    #
+    # Load conversation history.
+    #
+    memory = ConversationMemoryAdapter.build_memory(
+        session=session,
+    )
+
+    #
+    # Optimize long conversations.
+    #
+    manager = ConversationManager()
+
+    memory = manager.optimize_memory(
+        memory,
+    )
+
+    #
+    # Build transcript.
+    #
+    conversation_context = memory.transcript()
+
+    #
+    # Execute conversational agent.
+    #
+    agent = ChatAgent()
+
+    assistant_response = agent.reply(
+        conversation_context=conversation_context,
+        user_message=user_message,
+    ).strip()
+
+    #
+    # Persist assistant reply.
+    #
+    ChatService.add_assistant_message(
+        session=session,
+        content=assistant_response,
+    )
+
+    return assistant_response
