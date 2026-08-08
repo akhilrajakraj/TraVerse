@@ -64,4 +64,12 @@ urlpatterns = [
         "api/chat/",
         include("apps.chat.urls"),
     ),
+    path(
+        "api/documents/",
+        include("apps.documents.urls"),
+    ),
+    path(
+        "api/v1/public/",
+        include("apps.documents.public_urls"),
+    ),
 ]
