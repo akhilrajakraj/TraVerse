@@ -88,6 +88,7 @@ class TestChatAgent:
         self.prompt.render_user_prompt.assert_called_once_with(
             conversation_context="Conversation",
             user_message="Hello",
+            retrieved_destinations=[],
         )
 
     def test_calls_groq_client_once(self) -> None:
@@ -159,3 +160,43 @@ class TestChatAgent:
         )
 
         assert response == "Hello Traveller!"
+        
+    def test_reply_includes_retrieved_destinations_in_prompt(self):
+        """
+        Retrieved destinations should be forwarded to the prompt template.
+        """
+
+        from decimal import Decimal
+
+        from ai.tools.destination_search import (
+            DestinationSearchResult,
+        )
+
+        retrieved = [
+            DestinationSearchResult(
+                name="Tokyo",
+                country="Japan",
+                city="Tokyo",
+                latitude=Decimal("35.676200"),
+                longitude=Decimal("139.650300"),
+                summary="Capital of Japan",
+                description="Modern city with historic temples.",
+                tags=["culture", "food"],
+            ),
+        ]
+
+        self.prompt.render_user_prompt.return_value = "Prompt"
+
+        self.agent.reply(
+            conversation_context="History",
+            user_message="Tokyo",
+            retrieved_destinations=retrieved,
+        )
+
+        self.prompt.render_user_prompt.assert_called_once_with(
+            conversation_context="History",
+            user_message="Tokyo",
+            retrieved_destinations=retrieved,
+        )
+        
+    

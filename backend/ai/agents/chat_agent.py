@@ -30,6 +30,7 @@ class ChatAgent:
         *,
         conversation_context: str,
         user_message: str,
+        retrieved_destinations = None,
     ) -> str:
         """
         Generate a conversational response.
@@ -38,6 +39,7 @@ class ChatAgent:
         user_prompt = self._prompt.render_user_prompt(
             conversation_context=conversation_context,
             user_message=user_message,
+            retrieved_destinations=retrieved_destinations or [],
         )
 
         response = self._client.call(

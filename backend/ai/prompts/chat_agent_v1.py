@@ -43,6 +43,7 @@ class ChatAgentPromptV1(PromptTemplate):
         *,
         conversation_context: str,
         user_message: str,
+        retrieved_destinations,
     ) -> str:
         """
         Render the user prompt.
@@ -54,9 +55,25 @@ class ChatAgentPromptV1(PromptTemplate):
             else "No previous conversation."
         )
 
+        destination_context = ""
+
+        if retrieved_destinations:
+            destination_context = "\n\nRetrieved Destinations:\n"
+
+            for destination in retrieved_destinations:
+                destination_context += (
+                    f"- {destination.name}, "
+                    f"{destination.city}, "
+                    f"{destination.country}\n"
+                    f"Summary: {destination.summary}\n"
+                    f"Description: {destination.description}\n"
+                    f"Tags: {', '.join(destination.tags)}\n\n"
+                )
+
         return (
             "Conversation History:\n"
-            f"{context}\n\n"
+            f"{context}"
+            f"{destination_context}\n\n"
             "Latest User Message:\n"
             f"{user_message}\n\n"
             "Respond naturally while considering the conversation history."

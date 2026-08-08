@@ -19,7 +19,7 @@ from datetime import date
 from datetime import time
 from decimal import Decimal
 from unittest.mock import MagicMock
-from unittest.mock import patch
+from unittest.mock import patch, ANY
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase
@@ -57,6 +57,7 @@ from apps.ai_agents.services import (
     _persist_weather_forecast,
     _persist_recommendations,
     _persist_packing_list,
+    generate_chat_reply,
 )
 
 from apps.destinations.models import Destination
@@ -1298,6 +1299,31 @@ class AttachConversationContextTests(BaseServiceTestCase):
             "Conversation Summary",
         )
         
+class AttachDestinationContextTests(BaseServiceTestCase):
+    """
+    Tests for destination retrieval context.
+    """
+
+    def test_returns_original_state(self):
+        from apps.ai_agents.services import (
+            _attach_destination_context,
+        )
+
+        state = {
+            "trip_title": self.trip.title,
+        }
+
+        result = _attach_destination_context(
+            state=state,
+            user_message="Tokyo",
+        )
+
+        self.assertEqual(
+            result,
+            state,
+        )
+        
+
 class RunTravelPlannerConversationTests(BaseServiceTestCase):
     """
     Verify assistant responses are persisted.
@@ -1570,4 +1596,150 @@ class GenerateChatReplyTests(BaseServiceTestCase):
         self.assertEqual(
             response,
             "Welcome!",
+        )
+    
+    @patch("apps.ai_agents.services.search_destination")
+    @patch("apps.ai_agents.services.ChatAgent")
+    def test_passes_retrieved_destinations_to_chat_agent(
+        self,
+        mock_chat_agent,
+        mock_search_destination,
+    ):
+        """
+        Retrieved destinations should be forwarded to the ChatAgent.
+        """
+
+        from decimal import Decimal
+        from unittest.mock import ANY
+
+        from ai.tools.destination_search import (
+            DestinationSearchResult,
+        )
+
+        from apps.ai_agents.services import (
+            generate_chat_reply,
+        )
+
+        mock_search_destination.return_value = [
+            DestinationSearchResult(
+                name="Tokyo",
+                country="Japan",
+                city="Tokyo",
+                latitude=Decimal("35.676200"),
+                longitude=Decimal("139.650300"),
+                summary="City of Light",
+                description="Capital of France",
+                tags=["culture", "museum"],
+            ),
+        ]
+
+        agent = mock_chat_agent.return_value
+        agent.reply.return_value = "Welcome!"
+
+        response = generate_chat_reply(
+            trip=self.trip,
+            user_message="Tokyo",
+        )
+
+        mock_search_destination.assert_called_once_with(
+            query="Tokyo",
+        )
+
+        agent.reply.assert_called_once_with(
+            conversation_context=ANY,
+            user_message="Tokyo",
+            retrieved_destinations=mock_search_destination.return_value,
+        )
+
+        self.assertEqual(
+            response,
+            "Welcome!",
+        )
+    
+        
+class AttachDestinationContextTests(BaseServiceTestCase):
+    """
+    Tests for attaching destination retrieval context.
+    """
+
+    @patch("apps.ai_agents.services.search_destination")
+    def test_attaches_destination_results(
+        self,
+        mock_search_destination,
+    ):
+        from ai.tools.destination_search import (
+            DestinationSearchResult,
+        )
+
+        from apps.ai_agents.services import (
+            _attach_destination_context,
+        )
+
+        mock_search_destination.return_value = [
+            DestinationSearchResult(
+                name="Tokyo",
+                country="Japan",
+                city="Tokyo",
+                latitude=Decimal("35.676200"),
+                longitude=Decimal("139.650300"),
+                summary="City of Light",
+                description="Capital of France",
+                tags=["culture", "museum"],
+                
+            ),
+        ]
+
+        state = {}
+
+        result = _attach_destination_context(
+            state=state,
+            user_message="Tokyo",
+        )
+
+        mock_search_destination.assert_called_once_with(
+            query="Tokyo",
+        )
+
+        self.assertIn(
+            "retrieved_destinations",
+            result,
+        )
+
+        self.assertEqual(
+            len(result["retrieved_destinations"]),
+            1,
+        )
+
+    @patch("apps.ai_agents.services.search_destination")
+    def test_returns_original_state_when_no_destinations_found(
+        self,
+        mock_search_destination,
+    ):
+        from apps.ai_agents.services import (
+            _attach_destination_context,
+        )
+
+        mock_search_destination.return_value = []
+
+        state = {
+            "trip_title": self.trip.title,
+        }
+
+        result = _attach_destination_context(
+            state=state,
+            user_message="Unknown Place",
+        )
+
+        mock_search_destination.assert_called_once_with(
+            query="Unknown Place",
+        )
+
+        self.assertEqual(
+            result,
+            state,
+        )
+
+        self.assertNotIn(
+            "retrieved_destinations",
+            result,
         )

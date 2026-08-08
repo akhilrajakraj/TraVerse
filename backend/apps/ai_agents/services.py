@@ -20,6 +20,8 @@ from django.utils import timezone
 
 from decimal import Decimal
 
+from dataclasses import asdict
+
 from django.db import transaction
 from requests import session
 
@@ -65,6 +67,8 @@ from apps.chat.services import ChatService
 
 from ai.agents.chat_agent import ChatAgent
 from apps.chat.models import ChatSession
+
+from apps.ai_agents.destination_search import search_destination
 
 logger = logging.getLogger("apps.ai_agents")
 
@@ -118,6 +122,25 @@ def _attach_conversation_context(
         memory.transcript()
     )
     
+    return state
+
+def _attach_destination_context(
+    *,
+    state: dict,
+    user_message: str,
+) -> dict:
+    """
+    Attach destination retrieval context to the AI state.
+    """
+    results = search_destination(
+        query=user_message,
+    )
+
+    if not results:
+        return state
+
+    state["retrieved_destinations"] = results
+
     return state
 
 
@@ -325,13 +348,34 @@ def run_travel_planner(
         state=initial_state,
     )
     
+    initial_state = _attach_destination_context(
+        state=initial_state,
+        user_message=" ".join(
+        initial_state["destination_names"],
+        ),
+    )
+    
+    snapshot = dict(initial_state)
+
+    if "retrieved_destinations" in snapshot:
+        serialized_destinations = []
+
+        for destination in snapshot["retrieved_destinations"]:
+            data = asdict(destination)
+
+            data["latitude"] = float(data["latitude"])
+            data["longitude"] = float(data["longitude"])
+
+            serialized_destinations.append(data)
+
+        snapshot["retrieved_destinations"] = serialized_destinations
 
     agent_run = AgentRun.objects.create(
         trip=trip,
         triggered_by=triggered_by,
         agent_type=AgentType.TRAVEL_PLANNER,
         status=AgentRunStatus.RUNNING,
-        input_snapshot=initial_state,
+        input_snapshot=snapshot,
         started_at=timezone.now(),
     )
 
@@ -494,6 +538,10 @@ def generate_chat_reply(
     # Build transcript.
     #
     conversation_context = memory.transcript()
+    
+    retrieved_destinations = search_destination(
+        query=user_message,
+    )
 
     #
     # Execute conversational agent.
@@ -503,6 +551,7 @@ def generate_chat_reply(
     assistant_response = agent.reply(
         conversation_context=conversation_context,
         user_message=user_message,
+        retrieved_destinations=retrieved_destinations,
     ).strip()
 
     #

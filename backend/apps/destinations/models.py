@@ -41,6 +41,19 @@ class Destination(UUIDPrimaryKeyModel, TimeStampedModel):
     image_url = models.URLField(
         blank=True,
     )
+    
+    summary = models.TextField(
+        blank=True,
+    )
+
+    description = models.TextField(
+        blank=True,
+    )
+
+    tags = models.JSONField(
+        default=list,
+        blank=True,
+    )
 
     is_active = models.BooleanField(
         default=True,
