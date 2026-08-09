@@ -1,23 +1,16 @@
-"""
-Version 1 conversational chat prompt.
-
-This module defines the first production prompt used by the
-TraVerse AI Chat Agent.
-
-The prompt layer is responsible only for prompt construction.
-It remains completely independent of Django models and any
-specific LLM provider.
-"""
+"""Version 1 conversational chat prompt."""
 
 from __future__ import annotations
 
 from ai.prompts.base import PromptTemplate
+from ai.prompts.sanitization import (
+    PROMPT_INJECTION_DEFENSE_INSTRUCTION,
+    delimit_user_content,
+)
 
 
 class ChatAgentPromptV1(PromptTemplate):
-    """
-    Version 1 conversational prompt.
-    """
+    """Version 1 conversational prompt with user-content boundaries."""
 
     def __init__(self) -> None:
         super().__init__(
@@ -35,6 +28,7 @@ class ChatAgentPromptV1(PromptTemplate):
                 "- Never expose internal JSON or implementation details.\n"
                 "- Return plain text only.\n"
                 "- Do not use Markdown code fences."
+                + PROMPT_INJECTION_DEFENSE_INSTRUCTION
             ),
         )
 
@@ -45,10 +39,6 @@ class ChatAgentPromptV1(PromptTemplate):
         user_message: str,
         retrieved_destinations,
     ) -> str:
-        """
-        Render the user prompt.
-        """
-
         context = (
             conversation_context.strip()
             if conversation_context.strip()
@@ -56,15 +46,11 @@ class ChatAgentPromptV1(PromptTemplate):
         )
 
         destination_context = ""
-
         if retrieved_destinations:
             destination_context = "\n\nRetrieved Destinations:\n"
-
             for destination in retrieved_destinations:
                 destination_context += (
-                    f"- {destination.name}, "
-                    f"{destination.city}, "
-                    f"{destination.country}\n"
+                    f"- {destination.name}, {destination.city}, {destination.country}\n"
                     f"Summary: {destination.summary}\n"
                     f"Description: {destination.description}\n"
                     f"Tags: {', '.join(destination.tags)}\n\n"
@@ -75,7 +61,7 @@ class ChatAgentPromptV1(PromptTemplate):
             f"{context}"
             f"{destination_context}\n\n"
             "Latest User Message:\n"
-            f"{user_message}\n\n"
+            f"{delimit_user_content(user_message)}\n\n"
             "Respond naturally while considering the conversation history."
         )
 
