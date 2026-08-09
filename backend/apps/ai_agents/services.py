@@ -27,19 +27,12 @@ from ai.agents.schemas import (
     RecommendationBatchSchema,
     WeatherForecastSchema,
 )
-from ai.exceptions import (
-    LLMCallFailed,
-    StructuredOutputInvalid,
-)
+from ai.exceptions import LLMCallFailed, StructuredOutputInvalid
 from ai.graphs.planning_graph import run_planning_graph
 from ai.memory.conversation_manager import ConversationManager
 
 from apps.ai_agents.destination_search import search_destination
-from apps.ai_agents.models import (
-    AgentRun,
-    AgentRunStatus,
-    AgentType,
-)
+from apps.ai_agents.models import AgentRun, AgentRunStatus, AgentType
 from apps.budget import services as budget_services
 from apps.budget.models import Budget
 from apps.chat.adapters import ConversationMemoryAdapter
@@ -48,7 +41,6 @@ from apps.destinations.models import Destination
 from apps.itinerary import services as itinerary_services
 from apps.itinerary.models import ItineraryDay
 from apps.notifications.models import NotificationType
-from apps.notifications.services import create_notification
 from apps.recommendations import services as recommendation_services
 from apps.recommendations.models import RecommendationCategory
 from apps.trips import services as trip_services
@@ -63,31 +55,16 @@ def _build_initial_state(trip: Trip) -> dict:
         "trip_title": trip.title,
         "start_date": trip.start_date.isoformat(),
         "end_date": trip.end_date.isoformat(),
-        "destination_names": [
-            destination.name
-            for destination in trip.destinations.all()
-        ],
+        "destination_names": [destination.name for destination in trip.destinations.all()],
         "traveler_count": trip.traveler_count,
         "trip_notes": trip.notes or "",
     }
 
 
-def _attach_conversation_context(
-    *,
-    session=None,
-    state: dict,
-    trip: Trip | None = None,
-) -> dict:
-    """
-    Attach optimized conversation context.
-
-    ``session`` is the production path and avoids an extra lookup because the
-    caller resolves it once. ``trip`` remains an optional compatibility path
-    for older service-level callers; it performs the lookup only when needed.
-    """
+def _attach_conversation_context(*, session=None, state: dict, trip: Trip | None = None) -> dict:
+    """Attach optimized conversation context without duplicate production lookups."""
     if session is None and trip is not None:
         session = ChatService.get_active_session(trip=trip)
-
     if session is None:
         return state
 
@@ -113,12 +90,10 @@ def _persist_itinerary_plan(*, trip: Trip, plan) -> dict:
 
     for day_schema in plan.days:
         day = (
-            ItineraryDay.objects
-            .select_for_update()
+            ItineraryDay.objects.select_for_update()
             .filter(trip=trip, day_number=day_schema.day_number)
             .first()
         )
-
         if day is None:
             day = ItineraryDay.objects.create(
                 trip=trip,
@@ -132,7 +107,6 @@ def _persist_itinerary_plan(*, trip: Trip, plan) -> dict:
             day.save(update_fields=["date", "summary", "updated_at"])
 
         day.items.all().delete()
-
         items = [
             {
                 "title": item_schema.title,
@@ -144,7 +118,6 @@ def _persist_itinerary_plan(*, trip: Trip, plan) -> dict:
             }
             for index, item_schema in enumerate(day_schema.items)
         ]
-
         itinerary_services.add_items_to_day(day=day, items=items)
         itinerary_days[day_schema.date] = day
 
@@ -153,12 +126,7 @@ def _persist_itinerary_plan(*, trip: Trip, plan) -> dict:
 
 def _persist_budget_estimate(*, trip: Trip, budget_estimate) -> None:
     """Persist AI-generated budget estimates as one write batch."""
-    budget = (
-        Budget.objects
-        .select_related("trip")
-        .get(trip=trip)
-    )
-
+    budget = Budget.objects.select_related("trip").get(trip=trip)
     line_items = [
         {
             "category": line_item.category,
@@ -167,11 +135,7 @@ def _persist_budget_estimate(*, trip: Trip, budget_estimate) -> None:
         }
         for line_item in budget_estimate.line_items
     ]
-
-    budget_services.replace_ai_estimated_line_items(
-        budget=budget,
-        line_items=line_items,
-    )
+    budget_services.replace_ai_estimated_line_items(budget=budget, line_items=line_items)
 
 
 def _persist_weather_forecast(
@@ -180,27 +144,18 @@ def _persist_weather_forecast(
     weather_forecast: WeatherForecastSchema,
     itinerary_days: dict | None = None,
 ) -> None:
-    """
-    Persist weather using the planner's resolved day map.
-
-    The compatibility fallback is used only by older direct callers that do
-    not provide ``itinerary_days``; the production planner always supplies it
-    and therefore performs no additional day lookup.
-    """
+    """Persist weather from the planner's resolved day map."""
     if itinerary_days is None:
+        dates = [weather_day.date for weather_day in weather_forecast.days]
         itinerary_days = {
             day.date: day
-            for day in ItineraryDay.objects.filter(
-                trip=trip,
-                date__in=[weather_day.date for weather_day in weather_forecast.days],
-            )
+            for day in ItineraryDay.objects.filter(trip=trip, date__in=dates)
         }
 
     for weather_day in weather_forecast.days:
         itinerary_day = itinerary_days.get(weather_day.date)
         if itinerary_day is None:
             continue
-
         itinerary_day.weather_condition = weather_day.condition
         itinerary_day.weather_high_f = weather_day.high_f
         itinerary_day.weather_low_f = weather_day.low_f
@@ -218,12 +173,11 @@ def _persist_weather_forecast(
 def _persist_recommendations(*, trip: Trip, recommendations: RecommendationBatchSchema) -> None:
     """Persist validated AI-generated recommendations."""
     recommendation_services.clear_pending_ai_recommendations(trip=trip)
-    names = {r.destination for r in recommendations.recommendations}
+    names = {recommendation.destination for recommendation in recommendations.recommendations}
     destinations = {
         destination.name: destination
         for destination in Destination.objects.filter(name__in=names)
     }
-
     for recommendation in recommendations.recommendations:
         destination = destinations.get(recommendation.destination)
         if destination is None:
@@ -254,7 +208,9 @@ def _persist_packing_list(*, trip: Trip, packing_list: PackingListSchema) -> Non
 
 def _notify_planning_succeeded(*, trip: Trip) -> None:
     """Notify the trip owner that AI planning completed successfully."""
-    create_notification(
+    from apps.notifications import services as notification_services
+
+    notification_services.create_notification(
         user=trip.user,
         notification_type=NotificationType.TRIP_PLAN_READY,
         subject=f"Your itinerary for {trip.title} is ready!",
@@ -268,12 +224,8 @@ def _notify_planning_succeeded(*, trip: Trip) -> None:
 def run_travel_planner(*, trip: Trip, triggered_by=None) -> AgentRun:
     """Execute the complete Travel Planner workflow."""
     session = ChatService.get_active_session(trip=trip)
-
     initial_state = _build_initial_state(trip)
-    initial_state = _attach_conversation_context(
-        session=session,
-        state=initial_state,
-    )
+    initial_state = _attach_conversation_context(session=session, state=initial_state)
     initial_state = _attach_destination_context(
         state=initial_state,
         user_message=" ".join(initial_state["destination_names"]),
@@ -302,21 +254,12 @@ def run_travel_planner(*, trip: Trip, triggered_by=None) -> AgentRun:
         final_state = run_planning_graph(initial_state)
         assistant_response = final_state.get("assistant_response")
         if session is not None and assistant_response:
-            ChatService.add_assistant_message(
-                session=session,
-                content=assistant_response,
-            )
+            ChatService.add_assistant_message(session=session, content=assistant_response)
 
         with transaction.atomic():
-            itinerary_days = _persist_itinerary_plan(
-                trip=trip,
-                plan=final_state["itinerary"],
-            )
+            itinerary_days = _persist_itinerary_plan(trip=trip, plan=final_state["itinerary"])
             if "budget_estimate" in final_state:
-                _persist_budget_estimate(
-                    trip=trip,
-                    budget_estimate=final_state["budget_estimate"],
-                )
+                _persist_budget_estimate(trip=trip, budget_estimate=final_state["budget_estimate"])
             if "weather_forecast" in final_state:
                 _persist_weather_forecast(
                     trip=trip,
@@ -324,43 +267,24 @@ def run_travel_planner(*, trip: Trip, triggered_by=None) -> AgentRun:
                     itinerary_days=itinerary_days,
                 )
             if "recommendations" in final_state:
-                _persist_recommendations(
-                    trip=trip,
-                    recommendations=final_state["recommendations"],
-                )
+                _persist_recommendations(trip=trip, recommendations=final_state["recommendations"])
             if "packing_list" in final_state:
-                _persist_packing_list(
-                    trip=trip,
-                    packing_list=final_state["packing_list"],
-                )
+                _persist_packing_list(trip=trip, packing_list=final_state["packing_list"])
 
     except StructuredOutputInvalid as exc:
-        logger.warning(
-            "Travel planner needs review for trip %s: %s",
-            trip.id,
-            exc,
-        )
+        logger.warning("Travel planner needs review for trip %s: %s", trip.id, exc)
         agent_run.status = AgentRunStatus.NEEDS_REVIEW
         agent_run.error_message = str(exc)
-
     except LLMCallFailed as exc:
-        logger.error(
-            "Travel planner failed for trip %s: %s",
-            trip.id,
-            exc,
-        )
+        logger.error("Travel planner failed for trip %s: %s", trip.id, exc)
         agent_run.status = AgentRunStatus.FAILED
         agent_run.error_message = str(exc)
-
     else:
         agent_run.status = AgentRunStatus.SUCCEEDED
         _notify_planning_succeeded(trip=trip)
-
     finally:
         agent_run.completed_at = timezone.now()
-        agent_run.save(
-            update_fields=["status", "error_message", "completed_at"],
-        )
+        agent_run.save(update_fields=["status", "error_message", "completed_at"])
 
     return agent_run
 
@@ -369,22 +293,16 @@ def generate_chat_reply(*, trip: Trip, user_message: str) -> str:
     """Execute a conversational AI request without running the planning graph."""
     session = ChatService.get_or_create_active_session(trip=trip)
     ChatService.add_user_message(session=session, content=user_message)
-
     memory = ConversationMemoryAdapter.build_memory(session=session)
     manager = ConversationManager()
     memory = manager.optimize_memory(memory)
     conversation_context = memory.transcript()
     retrieved_destinations = search_destination(query=user_message)
-
     agent = ChatAgent()
     assistant_response = agent.reply(
         conversation_context=conversation_context,
         user_message=user_message,
         retrieved_destinations=retrieved_destinations,
     ).strip()
-
-    ChatService.add_assistant_message(
-        session=session,
-        content=assistant_response,
-    )
+    ChatService.add_assistant_message(session=session, content=assistant_response)
     return assistant_response
