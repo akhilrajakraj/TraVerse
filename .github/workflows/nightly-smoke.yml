@@ -10,7 +10,10 @@ permissions:
 
 jobs:
   smoke:
-    if: ${{ secrets.GROQ_API_KEY != '' && vars.ENABLE_AI_SMOKE_TEST == 'true' }}
+    # GitHub does not expose the secrets context in a job-level `if`.
+    # The repository variable gates whether this workflow is enabled;
+    # the first step validates that the provider secret is actually present.
+    if: ${{ vars.ENABLE_AI_SMOKE_TEST == 'true' }}
     runs-on: ubuntu-latest
     env:
       DJANGO_SETTINGS_MODULE: config.settings
@@ -55,6 +58,14 @@ jobs:
           --health-retries=5
 
     steps:
+      - name: Validate smoke-test gate
+        shell: bash
+        run: |
+          if [[ -z "${GROQ_API_KEY}" ]]; then
+            echo "ENABLE_AI_SMOKE_TEST is true but GROQ_API_KEY is not configured."
+            exit 1
+          fi
+
       - name: Checkout
         uses: actions/checkout@v4
 
