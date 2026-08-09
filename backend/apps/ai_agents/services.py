@@ -124,22 +124,50 @@ def _persist_itinerary_plan(
     """
     Persist validated itinerary output in batches.
 
+    The caller owns the surrounding transaction. The trip row is locked
+    once so concurrent planner executions for the same trip are serialized.
+    This allows itinerary-day upserts to avoid update_or_create()'s nested
+    savepoints while retaining a deterministic write boundary.
+
     Returns a date-to-day mapping so the weather persistence step can
     update the already-resolved itinerary days without issuing another
     lookup query.
     """
 
+    trip = Trip.objects.select_for_update().get(
+        pk=trip.pk,
+    )
+
     itinerary_days = {}
 
     for day_schema in plan.days:
-        day, _ = ItineraryDay.objects.update_or_create(
-            trip=trip,
-            day_number=day_schema.day_number,
-            defaults={
-                "date": day_schema.date,
-                "summary": day_schema.summary,
-            },
+        day = (
+            ItineraryDay.objects
+            .select_for_update()
+            .filter(
+                trip=trip,
+                day_number=day_schema.day_number,
+            )
+            .first()
         )
+
+        if day is None:
+            day = ItineraryDay.objects.create(
+                trip=trip,
+                day_number=day_schema.day_number,
+                date=day_schema.date,
+                summary=day_schema.summary,
+            )
+        else:
+            day.date = day_schema.date
+            day.summary = day_schema.summary
+            day.save(
+                update_fields=[
+                    "date",
+                    "summary",
+                    "updated_at",
+                ],
+            )
 
         day.items.all().delete()
 
