@@ -81,6 +81,40 @@ def add_item_to_day(
     return _create()
 
 
+def add_items_to_day(
+    *,
+    day: ItineraryDay,
+    items: list[dict],
+) -> list[ItineraryItem]:
+    """
+    Batch-create a fully ordered set of itinerary items.
+
+    This is intended for bulk planner output where the caller already
+    owns the surrounding transaction and supplies deterministic order
+    values. The normal single-item service remains unchanged for manual
+    edits.
+    """
+
+    objects = [
+        ItineraryItem(
+            day=day,
+            title=item["title"],
+            order=item["order"],
+            **{
+                key: value
+                for key, value in item.items()
+                if key not in {"title", "order"}
+            },
+        )
+        for item in items
+    ]
+
+    if not objects:
+        return []
+
+    return ItineraryItem.objects.bulk_create(objects)
+
+
 @transaction.atomic
 def insert_item_between(
     *,
