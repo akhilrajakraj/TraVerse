@@ -1,19 +1,4 @@
-"""
-REST API views for the AI Agents application.
-
-This module exposes endpoints that allow clients to:
-
-- Start asynchronous AI itinerary generation.
-- Poll the status of an AI planning run.
-
-The views intentionally remain lightweight.
-
-Business logic belongs in:
-- apps.ai_agents.services
-- apps.ai_agents.tasks
-
-AI execution happens asynchronously through Celery.
-"""
+"""REST API views for asynchronous AI planning."""
 
 from __future__ import annotations
 
@@ -25,40 +10,44 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.ai_agents.models import AgentRun
-from apps.ai_agents.serializers import (
-    AgentRunStatusSerializer,
-)
-from apps.ai_agents.tasks import (
-    run_travel_planner_task,
-)
+from apps.ai_agents.serializers import AgentRunStatusSerializer
+from apps.ai_agents.tasks import run_travel_planner_task
+from apps.core.rate_limiting import increment_rate_limit, is_rate_limited
 from apps.trips.models import Trip
 
 
+_PLAN_RATE_LIMIT_MAX = 5
+_PLAN_RATE_LIMIT_WINDOW_SECONDS = 3600
+
+
 class TripPlanView(APIView):
-    """
-    Queue AI itinerary generation for a trip.
+    """Queue AI itinerary generation for a trip."""
 
-    Returns immediately while the AI planning executes
-    asynchronously via Celery.
-    """
+    permission_classes = [IsAuthenticated]
 
-    permission_classes = [
-        IsAuthenticated,
-    ]
+    def post(self, request, trip_id):
+        trip = get_object_or_404(Trip, pk=trip_id, user=request.user)
 
-    def post(
-        self,
-        request,
-        trip_id,
-    ):
-        """
-        Queue a Travel Planner execution.
-        """
+        rate_limit_key = f"plan_trigger_rate_limit:{request.user.id}"
+        if is_rate_limited(
+            key=rate_limit_key,
+            max_requests=_PLAN_RATE_LIMIT_MAX,
+        ):
+            return Response(
+                {
+                    "error": {
+                        "code": "rate_limited",
+                        "message": (
+                            f"Maximum {_PLAN_RATE_LIMIT_MAX} planning requests per hour."
+                        ),
+                    }
+                },
+                status=status.HTTP_429_TOO_MANY_REQUESTS,
+            )
 
-        trip = get_object_or_404(
-            Trip,
-            pk=trip_id,
-            user=request.user,
+        increment_rate_limit(
+            key=rate_limit_key,
+            window_seconds=_PLAN_RATE_LIMIT_WINDOW_SECONDS,
         )
 
         async_result = run_travel_planner_task.delay(
@@ -68,9 +57,7 @@ class TripPlanView(APIView):
 
         return Response(
             {
-                "message": (
-                    "Travel planning has been queued."
-                ),
+                "message": "Travel planning has been queued.",
                 "task_id": async_result.id,
                 "trip_id": str(trip.id),
             },
@@ -79,56 +66,24 @@ class TripPlanView(APIView):
 
 
 class TripPlanStatusView(APIView):
-    """
-    Retrieve the latest AI planning status for a trip.
-    """
+    """Retrieve the latest AI planning status for a trip."""
 
-    permission_classes = [
-        IsAuthenticated,
-    ]
+    permission_classes = [IsAuthenticated]
 
-    def get(
-        self,
-        request,
-        trip_id,
-    ):
-        """
-        Return the latest AgentRun for the trip.
-        """
-
-        trip = get_object_or_404(
-            Trip,
-            pk=trip_id,
-            user=request.user,
-        )
+    def get(self, request, trip_id):
+        trip = get_object_or_404(Trip, pk=trip_id, user=request.user)
 
         agent_run = (
-            AgentRun.objects
-            .filter(
-                trip=trip,
-            )
-            .order_by(
-                "-created_at",
-            )
-            .first()
+            AgentRun.objects.filter(trip=trip).order_by("-created_at").first()
         )
 
         if agent_run is None:
             return Response(
-                {
-                    "detail": (
-                        "No AI planning has been started "
-                        "for this trip."
-                    ),
-                },
+                {"detail": "No AI planning has been started for this trip."},
                 status=status.HTTP_404_NOT_FOUND,
             )
 
-        serializer = AgentRunStatusSerializer(
-            agent_run,
-        )
-
         return Response(
-            serializer.data,
+            AgentRunStatusSerializer(agent_run).data,
             status=status.HTTP_200_OK,
         )
