@@ -64,6 +64,11 @@ CORS_ALLOWED_ORIGINS = [
     for origin in os.getenv("CORS_ALLOWED_ORIGINS", "").split(",")
     if origin.strip()
 ]
+if not CORS_ALLOWED_ORIGINS and os.getenv("DJANGO_ENV", "development").lower() != "production":
+    CORS_ALLOWED_ORIGINS = [
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    ]
 CORS_ALLOW_CREDENTIALS = True
 
 ROOT_URLCONF = "config.urls"
