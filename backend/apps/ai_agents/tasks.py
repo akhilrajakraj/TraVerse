@@ -39,6 +39,11 @@ def run_travel_planner_task(
     """
     Execute the Travel Planner asynchronously.
 
+    The worker is the actual model-loading boundary for the planning
+    workflow. The Trip is therefore fetched with its hot-path relations
+    preloaded here rather than in the HTTP view, which only queues the
+    Celery task and does not pass its Trip instance to the worker.
+
     Parameters
     ----------
     trip_id:
@@ -62,8 +67,19 @@ def run_travel_planner_task(
     from apps.ai_agents import services
     from apps.trips.models import Trip
 
-    trip = Trip.objects.get(
-        pk=trip_id,
+    #
+    # Chapter 27 performance audit:
+    #
+    # TripPlanView queues this task using only trip_id. Any queryset
+    # optimization performed in that HTTP view would be discarded before
+    # the worker executes. The worker is therefore the correct caller to
+    # preload the destination relation used by _build_initial_state().
+    #
+    trip = (
+        Trip.objects
+        .select_related("user")
+        .prefetch_related("destinations")
+        .get(pk=trip_id)
     )
 
     user = (

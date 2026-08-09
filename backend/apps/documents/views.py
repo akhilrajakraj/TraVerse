@@ -5,8 +5,8 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.documents import services
+from apps.documents.caching import get_cached_active_document
 from apps.documents.models import Document
-from apps.documents.selectors import get_active_document_by_token
 from apps.documents.serializers import PublicItinerarySerializer, ShareLinkSerializer
 from apps.itinerary.selectors import get_trip_itinerary
 from apps.trips.models import Trip
@@ -57,7 +57,7 @@ class PublicSharedItineraryView(APIView):
     permission_classes = (permissions.AllowAny,)
 
     def get(self, request, token):
-        document = get_active_document_by_token(token=token)
+        document = get_cached_active_document(token=token)
         if document is None:
             return Response(status=status.HTTP_404_NOT_FOUND)
 
