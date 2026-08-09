@@ -1,29 +1,16 @@
-"""
-Version 1 Travel Planner prompt.
-
-This module defines the first production prompt used by the
-TraVerse AI Travel Planner Agent.
-
-The prompt layer is responsible only for prompt construction.
-It remains completely independent of Django models and any
-specific LLM provider.
-"""
+"""Version 1 Travel Planner prompt."""
 
 from __future__ import annotations
 
 from ai.prompts.base import PromptTemplate
+from ai.prompts.sanitization import (
+    PROMPT_INJECTION_DEFENSE_INSTRUCTION,
+    delimit_user_content,
+)
 
 
 class TravelPlannerPromptV1(PromptTemplate):
-    """
-    Version 1 Travel Planner prompt.
-
-    This prompt instructs the LLM to generate a structured travel
-    itinerary matching the ItineraryPlanSchema defined within the
-    AI infrastructure.
-
-    The prompt intentionally remains provider-independent.
-    """
+    """Version 1 Travel Planner prompt with user-content boundaries."""
 
     def __init__(self) -> None:
         super().__init__(
@@ -45,6 +32,7 @@ class TravelPlannerPromptV1(PromptTemplate):
                 "- Activities should follow a realistic chronological order.\n"
                 "- Estimated costs must be non-negative.\n"
                 "- Descriptions should be concise but informative."
+                + PROMPT_INJECTION_DEFENSE_INSTRUCTION
             ),
         )
 
@@ -58,28 +46,21 @@ class TravelPlannerPromptV1(PromptTemplate):
         traveler_count: int,
         trip_notes: str,
     ) -> str:
-        """
-        Render the user prompt for itinerary generation.
-        """
-
-        destinations = ", ".join(
-            destination_names,
-        )
-
+        destinations = ", ".join(destination_names)
         notes = (
             trip_notes.strip()
             if trip_notes and trip_notes.strip()
             else "No additional travel preferences were provided."
         )
+        user_content = f"Trip Title: {trip_title}\nTrip Notes: {notes}"
 
         return (
             "Generate a complete travel itinerary.\n\n"
-            f"Trip Title: {trip_title}\n"
+            f"{delimit_user_content(user_content)}\n"
             f"Destinations: {destinations}\n"
             f"Start Date: {start_date}\n"
             f"End Date: {end_date}\n"
-            f"Number of Travelers: {traveler_count}\n"
-            f"Trip Notes: {notes}\n\n"
+            f"Number of Travelers: {traveler_count}\n\n"
             "Requirements:\n"
             "- Generate an itinerary covering every day of the trip.\n"
             "- Consider the number of travelers when planning activities.\n"
