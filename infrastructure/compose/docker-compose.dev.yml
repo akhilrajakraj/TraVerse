@@ -3,6 +3,11 @@ services:
     command: >
       python manage.py runserver 0.0.0.0:8000
 
+    # Publish Django only for local frontend development.
+    # Production continues to reach Django through Nginx internally.
+    ports:
+      - "8000:8000"
+
     volumes:
       - ../../backend:/app
 
