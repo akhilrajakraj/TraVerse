@@ -31,11 +31,12 @@ class NoRoomToInsert(BusinessRuleViolation):
     default_code = "no_room_to_insert"
 
 
-@transaction.atomic
 def add_item_to_day(
     *,
     day: ItineraryDay,
     title: str,
+    order: int | None = None,
+    use_transaction: bool = True,
     **extra_fields,
 ) -> ItineraryItem:
     """
@@ -43,26 +44,41 @@ def add_item_to_day(
 
     New items are assigned order values using the configured gap
     strategy (10, 20, 30, ...).
+
+    ``order`` and ``use_transaction`` are optional performance controls
+    for callers that already own the surrounding transaction and know the
+    desired order. Existing callers keep the original behavior by using
+    the defaults.
     """
 
-    last_item = (
-        day.items
-        .order_by("-order")
-        .first()
-    )
+    def _create() -> ItineraryItem:
+        if order is None:
+            last_item = (
+                day.items
+                .order_by("-order")
+                .first()
+            )
 
-    next_order = (
-        last_item.order + _ORDER_GAP
-        if last_item
-        else _ORDER_GAP
-    )
+            next_order = (
+                last_item.order + _ORDER_GAP
+                if last_item
+                else _ORDER_GAP
+            )
+        else:
+            next_order = order
 
-    return ItineraryItem.objects.create(
-        day=day,
-        title=title,
-        order=next_order,
-        **extra_fields,
-    )
+        return ItineraryItem.objects.create(
+            day=day,
+            title=title,
+            order=next_order,
+            **extra_fields,
+        )
+
+    if use_transaction:
+        with transaction.atomic():
+            return _create()
+
+    return _create()
 
 
 @transaction.atomic
