@@ -1,79 +1,29 @@
 """
 URL configuration for config project.
-
-The `urlpatterns` list routes URLs to views. For more information please see:
-    https://docs.djangoproject.com/en/5.2/topics/http/urls/
-Examples:
-Function views
-    1. Add an import:  from my_app import views
-    2. Add a URL to urlpatterns:  path('', views.home, name='home')
-Class-based views
-    1. Add an import:  from other_app.views import Home
-    2. Add a URL to urlpatterns:  path('', Home.as_view(), name='home')
-Including another URLconf
-    1. Import the include() function: from django.urls import include, path
-    2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
-from django.contrib import admin
-from django.urls import path
-from .views import system_info
-from common.health import health_check
 
 from django.contrib import admin
 from django.urls import include, path
 
+from common.health import health_check
+from .views import system_info
+
 
 urlpatterns = [
-    path('admin/', admin.site.urls),
+    path("admin/", admin.site.urls),
     path("system-info/", system_info),
     path("health/", health_check),
-    
-    path(
-        "api/accounts/",
-        include("apps.accounts.urls"),
-    ),
-    path(
-        "api/profiles/",
-        include("apps.profiles.urls"),
-    ),
-    path(
-        "api/destinations/",
-        include("apps.destinations.urls"),
-    ),
-    path(
-        "api/trips/",
-        include("apps.trips.urls"),
-    ),
-    path(
-        "api/itinerary/",
-        include("apps.itinerary.urls"),
-    ),
-    path(
-        "api/budget/",
-        include("apps.budget.urls"),
-    ),
-    path(
-        "api/recommendations/",
-        include("apps.recommendations.urls"),
-    ),
-    path(
-        "api/ai_agents/",
-        include("apps.ai_agents.urls"),
-    ),
-    path(
-        "api/chat/",
-        include("apps.chat.urls"),
-    ),
-    path(
-        "api/documents/",
-        include("apps.documents.urls"),
-    ),
-    path(
-        "api/v1/public/",
-        include("apps.documents.public_urls"),
-    ),
-    path(
-        "api/notifications/",
-        include("apps.notifications.urls"),
-    ),
+    path("api/accounts/", include("apps.accounts.urls")),
+    path("api/profiles/", include("apps.profiles.urls")),
+    path("api/destinations/", include("apps.destinations.urls")),
+    path("api/trips/", include("apps.trips.urls")),
+    path("api/trips/", include("apps.bookings.urls")),
+    path("api/itinerary/", include("apps.itinerary.urls")),
+    path("api/budget/", include("apps.budget.urls")),
+    path("api/recommendations/", include("apps.recommendations.urls")),
+    path("api/ai_agents/", include("apps.ai_agents.urls")),
+    path("api/chat/", include("apps.chat.urls")),
+    path("api/documents/", include("apps.documents.urls")),
+    path("api/v1/public/", include("apps.documents.public_urls")),
+    path("api/notifications/", include("apps.notifications.urls")),
 ]
