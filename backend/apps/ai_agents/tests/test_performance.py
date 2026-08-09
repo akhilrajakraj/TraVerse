@@ -38,6 +38,11 @@ class FullPlanningRunPerformanceTests(TestCase):
     assertNumQueries() is an exact-count assertion, so CaptureQueriesContext
     is used here to express the intended <= 25 contract without pretending
     that 25 is a required target.
+
+    The Trip passed to the service is fetched the same way the real Celery
+    worker fetches it. This keeps the measurement focused on the service
+    execution rather than charging the service for a relation that the
+    production worker has already prefetched.
     """
 
     QUERY_CEILING = 25
@@ -130,24 +135,36 @@ class FullPlanningRunPerformanceTests(TestCase):
             "packing_list": packing,
         }
 
+        planning_trip = (
+            Trip.objects
+            .select_related("user")
+            .prefetch_related("destinations")
+            .get(pk=self.trip.pk)
+        )
+
         with (
             patch("apps.ai_agents.services.run_planning_graph", return_value=graph_state),
             patch("apps.notifications.tasks.send_notification_task.delay"),
             CaptureQueriesContext(connection) as queries,
         ):
             run_travel_planner(
-                trip=self.trip,
+                trip=planning_trip,
                 triggered_by=self.user,
             )
 
-        self.assertLessEqual(
-            len(queries),
-            self.QUERY_CEILING,
-            msg=(
-                f"Full planning run executed {len(queries)} queries; "
-                f"ceiling is {self.QUERY_CEILING}."
-            ),
-        )
+        query_count = len(queries)
+        if query_count > self.QUERY_CEILING:
+            captured_sql = "\n".join(
+                f"{index}. {query['sql']}"
+                for index, query in enumerate(queries, start=1)
+            )
+            self.fail(
+                "Full planning run exceeded the query ceiling: "
+                f"{query_count} queries executed; "
+                f"ceiling is {self.QUERY_CEILING}.\n\n"
+                "Captured SQL:\n"
+                f"{captured_sql}"
+            )
 
 
 class PlanningWorkerQueryShapeTests(TestCase):
