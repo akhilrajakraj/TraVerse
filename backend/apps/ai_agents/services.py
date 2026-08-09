@@ -49,6 +49,18 @@ from apps.trips.models import PackingCategory, Trip
 logger = logging.getLogger("apps.ai_agents")
 
 
+def create_notification(*, user, notification_type: str, subject: str, body: str):
+    """Resolve notification creation lazily while keeping a patchable AI-service seam."""
+    from apps.notifications.services import create_notification as notification_create
+
+    return notification_create(
+        user=user,
+        notification_type=notification_type,
+        subject=subject,
+        body=body,
+    )
+
+
 def _build_initial_state(trip: Trip) -> dict:
     """Convert Django models into primitive values for the AI layer."""
     return {
@@ -208,9 +220,7 @@ def _persist_packing_list(*, trip: Trip, packing_list: PackingListSchema) -> Non
 
 def _notify_planning_succeeded(*, trip: Trip) -> None:
     """Notify the trip owner that AI planning completed successfully."""
-    from apps.notifications import services as notification_services
-
-    notification_services.create_notification(
+    create_notification(
         user=trip.user,
         notification_type=NotificationType.TRIP_PLAN_READY,
         subject=f"Your itinerary for {trip.title} is ready!",
