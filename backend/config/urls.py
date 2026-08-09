@@ -72,4 +72,8 @@ urlpatterns = [
         "api/v1/public/",
         include("apps.documents.public_urls"),
     ),
+    path(
+        "api/notifications/",
+        include("apps.notifications.urls"),
+    ),
 ]

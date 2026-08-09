@@ -247,6 +247,9 @@ class RunTravelPlannerSuccessTests(
 ):
 
     @patch(
+        "apps.notifications.services.create_notification",
+    )
+    @patch(
         "apps.ai_agents.services._persist_itinerary_plan",
     )
     @patch(
@@ -256,6 +259,7 @@ class RunTravelPlannerSuccessTests(
         self,
         mock_graph,
         mock_persist,
+        mock_create_notification,
     ):
 
         mock_graph.return_value = {
@@ -289,6 +293,16 @@ class RunTravelPlannerSuccessTests(
 
         mock_persist.assert_called_once()
 
+        mock_create_notification.assert_called_once_with(
+            user=self.trip.user,
+            notification_type="trip_plan_ready",
+            subject="Your itinerary for Japan Tour is ready!",
+            body=(
+                "Your AI-generated plan for Japan Tour "
+                "(2026-09-10 to 2026-09-15) is ready to view."
+            ),
+        )
+
 class RunTravelPlannerFailureTests(
     BaseServiceTestCase,
 ):
@@ -296,6 +310,9 @@ class RunTravelPlannerFailureTests(
     Verify failures originating from the AI layer.
     """
 
+    @patch(
+        "apps.notifications.services.create_notification",
+    )
     @patch(
         "apps.ai_agents.services.run_planning_graph",
     )
@@ -306,6 +323,7 @@ class RunTravelPlannerFailureTests(
         self,
         mock_persist,
         mock_graph,
+        mock_create_notification,
     ):
         """
         If the LLM provider fails, the AgentRun should be
@@ -345,6 +363,7 @@ class RunTravelPlannerFailureTests(
         mock_graph.assert_called_once()
 
         mock_persist.assert_not_called()
+        mock_create_notification.assert_not_called()
 
 
 class RunTravelPlannerNeedsReviewTests(
@@ -355,6 +374,9 @@ class RunTravelPlannerNeedsReviewTests(
     """
 
     @patch(
+        "apps.notifications.services.create_notification",
+    )
+    @patch(
         "apps.ai_agents.services.run_planning_graph",
     )
     @patch(
@@ -364,6 +386,7 @@ class RunTravelPlannerNeedsReviewTests(
         self,
         mock_persist,
         mock_graph,
+        mock_create_notification,
     ):
 
         mock_graph.side_effect = StructuredOutputInvalid(
@@ -394,6 +417,7 @@ class RunTravelPlannerNeedsReviewTests(
         mock_graph.assert_called_once()
 
         mock_persist.assert_not_called()
+        mock_create_notification.assert_not_called()
 
 
 class PersistExistingItineraryTests(

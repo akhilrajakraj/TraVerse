@@ -330,6 +330,31 @@ def _persist_packing_list(
             is_ai_generated=True,
         )
 
+def _notify_planning_succeeded(
+    *,
+    trip: Trip,
+) -> None:
+    """Notify the trip owner that AI planning completed successfully.
+
+    Notification creation is intentionally kept behind the notifications
+    app service. The AI layer owns the trigger, while the notifications
+    app owns notification persistence and delivery.
+    """
+
+    from apps.notifications.models import NotificationType
+    from apps.notifications.services import create_notification
+
+    create_notification(
+        user=trip.user,
+        notification_type=NotificationType.TRIP_PLAN_READY,
+        subject=f"Your itinerary for {trip.title} is ready!",
+        body=(
+            f"Your AI-generated plan for {trip.title} "
+            f"({trip.start_date} to {trip.end_date}) is ready to view."
+        ),
+    )
+
+
 def run_travel_planner(
     *,
     trip: Trip,
@@ -462,6 +487,9 @@ def run_travel_planner(
     else:
 
         agent_run.status = AgentRunStatus.SUCCEEDED
+        _notify_planning_succeeded(
+            trip=trip,
+        )
 
     finally:
 

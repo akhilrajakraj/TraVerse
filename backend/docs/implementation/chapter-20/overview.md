@@ -1,489 +1,232 @@
-# Chapter 20 — AI Agent Orchestration and Travel Planning
+Chapter 20 — Retrieval-Augmented Generation (RAG)
 
-## Overview
+Volume 5: Conversational Layer | Chapter 20 of 29
 
-Chapter 20 establishes the AI orchestration layer of the TraVerse platform.
+Chapter 20 closes Volume 5 by grounding TraVerse's conversational AI in the project's own destination catalog. The central engineering lesson is not "add a vector database"; it is learning to recognize that RAG can be implemented with the simplest retrieval mechanism that fits the data, while preserving the project's AI/Django dependency boundary.
 
-The chapter introduces the application boundary responsible for coordinating AI-driven travel planning, destination retrieval, conversational interaction, structured travel-plan generation, persistence of AI-generated results, and controlled failure handling.
+1. Chapter Purpose
 
-The implementation is centered around the `ai_agents` application and its interaction with the existing TraVerse domain applications. The AI layer does not replace the domain applications. Instead, it operates as an orchestration boundary that consumes domain information, invokes AI capabilities, validates generated results, and persists structured outputs into the appropriate domain models.
+The original Chapter 20 design introduced RAG as a destination-search tool:
 
-The architectural objective is to ensure that AI functionality remains separated from HTTP concerns, domain persistence, and individual application responsibilities.
-
----
-
-## 1. Architectural Role
-
-The `ai_agents` application acts as the orchestration layer between the AI capabilities of TraVerse and the application's domain model.
-
-Its responsibilities include:
-
-- constructing AI execution state
-- assembling trip context
-- attaching conversation context
-- retrieving destination knowledge
-- passing retrieved destination knowledge into AI conversations
-- invoking the travel-planning agent
-- invoking the conversational chat agent
-- interpreting structured AI output
-- persisting generated itinerary information
-- persisting weather information
-- persisting budget estimates
-- persisting packing lists
-- persisting recommendations
-- persisting assistant conversation messages
-- tracking AI execution through `AgentRun`
-- recording execution input snapshots
-- representing execution status
-- handling provider failures
-- handling invalid AI output
-- exposing execution status through the API
-
-The orchestration layer therefore provides a controlled boundary between probabilistic AI behaviour and deterministic application behaviour.
-
----
-
-## 2. Relationship With Existing Applications
-
-Chapter 20 integrates the AI layer with the existing TraVerse applications rather than introducing an isolated AI subsystem.
-
-The principal application relationships are:
-
-```text
-                    ┌──────────────────────┐
-                    │      API / Views     │
-                    └──────────┬───────────┘
-                               │
-                               ▼
-                    ┌──────────────────────┐
-                    │      ai_agents       │
-                    │   Orchestration      │
-                    └──────────┬───────────┘
-                               │
-          ┌────────────────────┼────────────────────┐
-          │                    │                    │
-          ▼                    ▼                    ▼
-   Destination Data      Conversation Data      Trip Data
-   destinations          chat / sessions        trips
-          │                    │                    │
-          └────────────────────┼────────────────────┘
-                               │
-                               ▼
-                    ┌──────────────────────┐
-                    │  AI Agent / LLM      │
-                    │  execution boundary  │
-                    └──────────┬───────────┘
-                               │
-                               ▼
-                    ┌──────────────────────┐
-                    │ Structured AI Output │
-                    └──────────┬───────────┘
-                               │
-          ┌────────────────────┼────────────────────┐
-          ▼                    ▼                    ▼
-      itinerary             budget            recommendations
-          │
-          ├──────────────► weather
-          │
-          └──────────────► packing
-
-The AI layer therefore acts as an orchestrator rather than a replacement for these domain boundaries.
-
-3. Travel Planning Architecture
-
-The travel-planning workflow is responsible for transforming trip information and contextual knowledge into structured travel-planning results.
-
-The workflow incorporates:
-
-trip information
-destination information
-itinerary requirements
-weather context
-packing requirements
-budget information
-recommendation requirements
-conversation context where applicable
-
-The resulting AI output is not treated as an arbitrary text response.
-
-Instead, the implementation establishes structured persistence boundaries for the generated information.
-
-The major persistence targets include:
-
-AI Planning Result
-│
-├── Itinerary
-│   └── Itinerary Days / Items
-│
-├── Weather Forecast
-│
-├── Budget
-│   └── Budget Items
-│
-├── Packing List
-│
-└── Recommendations
-
-This separation allows individual domain applications to continue owning their respective data while the AI layer remains responsible for orchestration.
-
-4. Destination Knowledge Integration
-
-Chapter 20 introduces destination knowledge retrieval as an explicit part of the AI execution context.
-
-Destination search supports matching against destination knowledge and identifying relevant destinations for AI processing.
-
-The selector layer ensures that:
-
-inactive destinations are excluded
-blank queries do not unintentionally return every destination
-destination names can be searched
-cities can be searched
-countries can be searched
-destination knowledge fields can be searched
-summary information is preserved
-description information is preserved
-destination tags are preserved
-
-The destination-search result is represented through a dedicated structured result rather than passing raw database objects throughout the AI orchestration layer.
-
-This establishes a boundary between persistence-layer objects and AI-facing contextual data.
-
-5. Conversation Integration
-
-The chapter also establishes the AI conversation path.
-
-The conversational workflow is responsible for:
-
-retrieving relevant conversation history
-attaching conversation context to AI state
-passing retrieved destination information to the chat agent
-generating an assistant response
-stripping the generated response before persistence
-persisting the user's message
-persisting the assistant's response
-supporting conversations without previous history
-
-This creates the following conceptual flow:
-
-User Message
-     │
-     ▼
-Chat API
-     │
-     ▼
-AI Agent Service
-     │
-     ├── Conversation Context
-     │
-     ├── Destination Context
-     │
-     └── Trip Context
-     │
-     ▼
+User message
+     ↓
 Chat Agent
-     │
-     ▼
-Assistant Response
-     │
-     ▼
-Persistence
+     ↓
+LLM decides whether catalog retrieval is needed
+     ↓
+search_destinations
+     ↓
+Destination catalog
+     ↓
+Retrieved destination context
+     ↓
+LLM response
 
-The conversational AI therefore receives application context without requiring the HTTP layer to understand the internal AI execution model.
+The original architecture deliberately rejected embeddings/vector search because the destination catalog is small and structured. fileciteturn160file0L30-L40
 
-6. AgentRun Execution Tracking
+The current repository has since evolved this implementation.
 
-AI execution is represented through the AgentRun model.
+The current code now uses:
 
-The execution record provides an application-level representation of an AI operation and establishes observability over AI planning executions.
+User message
+     ↓
+apps.ai_agents.services
+     ↓
+search_destination()
+     ↓
+apps.destinations.selectors.search_destinations()
+     ↓
+DestinationSearchResult
+     ↓
+ChatAgent.reply()
+     ↓
+ChatAgentPromptV1
+     ↓
+Retrieved Destinations section
+     ↓
+GroqClient
 
-The implementation records information including the execution input snapshot and execution state.
+The current implementation therefore retains the chapter's core RAG principle—retrieval from the project's own structured catalog—but represents retrieved data as typed AI-safe objects and attaches it directly to the chat prompt. fileciteturn154file0L2-L2 fileciteturn155file0L2-L2
 
-The lifecycle also distinguishes successful execution from failure and review-required execution.
+2. Learning Objectives
 
-Conceptually:
+By the end of this chapter, an engineer should be able to:
 
-                    ┌──────────────┐
-                    │   AgentRun   │
-                    └──────┬───────┘
-                           │
-             ┌─────────────┼─────────────┐
-             │             │             │
-             ▼             ▼             ▼
-          SUCCESS        FAILED     NEEDS_REVIEW
+Explain Retrieval-Augmented Generation without treating vector databases as synonymous with RAG.
 
-This is important because AI execution is inherently less deterministic than ordinary application services.
+Decide whether structured database retrieval or semantic/vector retrieval is appropriate.
 
-The platform therefore treats AI execution status as domain information rather than relying exclusively on application logs.
+Separate Django ORM access from the provider-independent ai/ package.
 
-7. Failure Handling
+Extract reusable database search logic when a second real consumer appears.
 
-Chapter 20 explicitly establishes failure boundaries around AI execution.
+Represent retrieved domain data as AI-safe structured objects.
 
-The implementation distinguishes at least two important failure classes.
+Inject retrieved context into a conversational prompt.
 
-Provider / Execution Failure
+Preserve existing chat behavior when retrieval returns no results.
 
-If the LLM provider fails, the travel-planning execution is marked as failed.
+Test retrieval independently from the LLM provider.
 
-The implementation was validated using a simulated Groq provider failure.
+Understand the difference between the original Chapter 20 architecture and the current repository implementation.
 
-The resulting behaviour was observed in the test suite as:
+3. What RAG Means in TraVerse
 
-LLM provider failure
-        │
-        ▼
-Travel planner exception
-        │
-        ▼
-AgentRun marked FAILED
-Invalid AI Output
+RAG means:
 
-AI-generated output can also be syntactically available while failing the application's expected schema.
+Retrieve relevant information
+        ↓
+Augment the model's context
+        ↓
+Generate the response
 
-The implementation therefore distinguishes invalid structured output from provider failure.
+For TraVerse:
 
-The corresponding behaviour is:
+Destination catalog
+        ↓
+search_destinations()
+        ↓
+DestinationSearchResult[]
+        ↓
+ChatAgent prompt
+        ↓
+LLM
 
-Invalid AI output
-        │
-        ▼
-Validation failure
-        │
-        ▼
-AgentRun marked NEEDS_REVIEW
+The model is not required to invent destination information from training knowledge when matching catalog data is available.
 
-This prevents invalid AI output from being treated as a successful domain operation.
+4. Why TraVerse Does Not Need a Vector Database Here
 
-8. Structured Persistence Boundary
+The original Chapter 20 explicitly rejects vector search.
 
-A central architectural characteristic of Chapter 20 is that AI output is converted into deterministic domain persistence operations.
+The catalog is:
 
-The AI system may generate probabilistic content, but persistence remains governed by explicit application services.
+structured,
 
-The implemented persistence responsibilities include:
+relational,
 
-itinerary persistence
-existing itinerary replacement
-weather persistence
-budget persistence
-packing-list persistence
-existing AI packing-item replacement
-recommendation persistence
-replacement of pending AI recommendations
-preservation of accepted recommendations
-assistant conversation persistence
+comparatively small,
 
-This establishes a boundary:
+represented by known fields,
 
-Probabilistic AI Output
-          │
-          ▼
-Structured Validation
-          │
-          ▼
-Application Services
-          │
-          ▼
-Deterministic Domain Persistence
+already searchable through database filters.
 
-The boundary prevents the LLM from directly controlling database persistence.
+The original chapter therefore chose targeted icontains retrieval rather than embeddings/vector similarity. fileciteturn160file0L34-L40
 
-9. Initial State and Context Construction
+This remains consistent with the current repository.
 
-The AI execution state is constructed before agent execution.
+The current selector searches:
 
-The implementation provides dedicated handling for:
+name
+country
+city
+summary
+description
+tags
 
-initial state construction
-trip context
-conversation context
-destination context
+while requiring:
 
-The trip-context builder organizes information into meaningful sections, including:
+is_active=True
 
-Trip Information
-Destination
-Itinerary
-Weather
-Packing
+and applying deterministic ordering. fileciteturn152file0L2-L2
 
-This creates a consistent contextual representation for downstream AI components.
+5. Current Architecture
 
-The architecture therefore separates context construction from agent execution.
+                    ┌─────────────────────┐
+                    │     User Message    │
+                    └──────────┬──────────┘
+                               │
+                               ▼
+                  generate_chat_reply()
+                  apps.ai_agents.services
+                               │
+                               ▼
+                    search_destination()
+                  apps.ai_agents.destination_search
+                               │
+                               ▼
+                  search_destinations()
+                  apps.destinations.selectors
+                               │
+                               ▼
+                    Destination ORM
+                               │
+                               ▼
+                DestinationSearchResult[]
+                               │
+                               ▼
+                       ChatAgent.reply()
+                         ai/agents/
+                               │
+                               ▼
+                    ChatAgentPromptV1
+                         ai/prompts/
+                               │
+                               ▼
+                  "Retrieved Destinations"
+                               │
+                               ▼
+                        GroqClient
 
-10. API Integration
+The current apps.ai_agents.services explicitly retrieves destinations and passes them into ChatAgent.reply(). fileciteturn158file0L2-L2
 
-Chapter 20 exposes AI functionality through API-level views without placing the orchestration implementation directly inside the views.
+6. Current Repository Evolution
 
-The implemented API responsibilities include:
+The original Chapter 20 document describes:
 
-queuing a travel plan
-exposing travel-plan execution status
-returning the latest AgentRun
-returning 404 when no execution exists
-enforcing the relevant authentication and ownership boundaries
+ai/tools/destination_search_tool.py
+        +
+LLM tool-calling
+        +
+GroqClient.call_with_tools()
+        +
+_search_destinations_executor()
 
-The conceptual API flow is:
+and says the LLM decides whether retrieval is needed. fileciteturn160file0L44-L54
 
-HTTP Request
-     │
-     ▼
-AI View
-     │
-     ▼
-AI Service
-     │
-     ▼
-Agent Execution
-     │
-     ▼
-AgentRun / Domain Persistence
+The current repository instead contains:
 
-This preserves the separation between transport-level concerns and AI orchestration.
+ai/tools/destination_search.py
+        ↓
+DestinationSearchResult
 
-11. Serializer Boundary
+and:
 
-The chapter also establishes a read-oriented serializer for AI execution status.
+apps/ai_agents/destination_search.py
+        ↓
+search_destination()
 
-The serializer was validated for:
+with the service layer calling retrieval directly before invoking ChatAgent. fileciteturn153file0L2-L2 fileciteturn154file0L2-L2
 
-expected fields
-correct values
-read-only behaviour
+This documentation therefore treats the current repository as authoritative while preserving the original chapter's architectural lessons.
 
-The serializer therefore functions as an API representation of AI execution state rather than as a write interface to the underlying execution record.
+7. Completion Definition
 
-12. Validation Scope
+Chapter 20 is complete when:
 
-Chapter 20 was validated at multiple levels.
+destination search is reusable outside the HTTP view,
 
-The implementation was tested independently through the ai_agents application test suite.
+inactive destinations cannot be retrieved,
 
-The final application-wide test suite was also executed.
+knowledge fields are searchable,
 
-The final result was:
+retrieved data crosses into the AI layer without Django model coupling,
 
-Found 290 test(s).
+chat prompts can receive retrieved destinations,
 
-Ran 290 tests in 46.623s
+normal chat still works without retrieval results,
 
-OK
+retrieval is tested independently,
 
-The complete Django test suite therefore completed successfully after the Chapter 20 implementation and its associated test corrections were completed.
+chat-agent integration is tested,
 
-The AI-specific application suite contained:
+the existing application test suite remains healthy,
 
-Found 39 test(s).
+and the implementation remains free of unnecessary vector-database infrastructure.
 
-Ran 39 tests in 12.002s
+8. Key Engineering Principle
 
-OK
+The deepest lesson is:
 
-Additional focused validation was performed for:
+RAG is an architecture pattern, not a database product.
 
-chat-agent behaviour
-destination selectors
-travel-planner success execution
-travel-planner failure handling
-review-required execution
-persistence services
-trip-context construction
-serializers
-API views
-13. Engineering Significance
-
-Chapter 20 establishes the first substantial AI orchestration boundary within the TraVerse backend.
-
-Its significance is not limited to integrating an LLM.
-
-The chapter establishes a controlled architecture in which:
-
-Domain Data
-     │
-     ▼
-Context Construction
-     │
-     ▼
-AI Orchestration
-     │
-     ▼
-Structured Output
-     │
-     ▼
-Validation
-     │
-     ▼
-Domain Persistence
-     │
-     ▼
-Execution Tracking
-
-This architecture allows AI functionality to evolve independently from the core domain applications while maintaining deterministic persistence and observable execution state.
-
-14. Architectural Boundaries Established
-
-The chapter establishes the following boundaries:
-
-Boundary	Responsibility
-Destination selectors	Retrieve destination knowledge
-Context builders	Construct AI-facing context
-AI services	Coordinate AI execution
-Agent implementations	Perform AI reasoning/generation
-Persistence services	Convert structured results into domain data
-AgentRun	Track AI execution state
-Serializers	Represent execution state through APIs
-Views	Handle HTTP/API interaction
-Domain applications	Own persistent business entities
-
-These boundaries reduce coupling between AI functionality and the rest of the platform.
-
-15. Future Consumers
-
-The architecture established in this chapter provides a foundation for future AI-enabled functionality including:
-
-richer travel-planning workflows
-additional AI agents
-improved destination intelligence
-contextual travel conversations
-recommendation intelligence
-AI-assisted itinerary modification
-additional structured planning capabilities
-asynchronous AI execution
-expanded execution observability
-
-Future capabilities can build upon the orchestration boundary without requiring the core domain applications to become directly responsible for LLM behaviour.
-
-16. Chapter Completion State
-
-At the conclusion of Chapter 20, the AI-agent implementation has passed its complete automated validation suite.
-
-The final repository state demonstrated:
-
-AI Agent Tests
-39 / 39 passing
-
-Full Django Test Suite
-290 / 290 passing
-
-The chapter therefore establishes a validated AI orchestration foundation rather than an experimental AI integration.
-
-The implementation provides:
-
-AI execution orchestration
-destination knowledge retrieval
-trip context construction
-conversation context integration
-chat-agent integration
-travel-planner execution
-structured persistence
-execution tracking
-failure handling
-review-required handling
-API status reporting
-serializer boundaries
-automated verification
-
-Chapter 20 consequently forms the AI orchestration foundation upon which subsequent TraVerse capabilities can be developed.
-
-
-:contentReference[oaicite:0]{index=0}
+TraVerse's RAG is deliberately built around the data it actually has rather than around whatever technology is fashionable.
