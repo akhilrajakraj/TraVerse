@@ -1,1 +1,1 @@
-export type { HealthCheckResult } from "./health";\n
+export type { HealthCheckResult } from "./health";
