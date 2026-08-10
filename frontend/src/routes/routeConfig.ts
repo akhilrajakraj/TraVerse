@@ -7,6 +7,7 @@ export const routes = {
   protected: {
     dashboard: "/dashboard",
     planner: "/planner",
+    destinations: "/destinations",
     profile: "/profile",
     saved: "/workspace/saved",
     settings: "/workspace/settings",
