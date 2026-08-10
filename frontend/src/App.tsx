@@ -1,56 +1,34 @@
-import { useState } from "react";
+import { Route, Routes } from "react-router-dom";
+import { HomePage } from "./features/home/pages/HomePage";
+import { ProtectedRoute } from "./routes/ProtectedRoute";
+import { routes } from "./routes/routeConfig";
 
-import { verifyApiConnection } from "./lib/verifyApiConnection";
-import type { HealthCheckResult } from "./types/health";
+function PlaceholderPage({ title }: { title: string }) {
+  return <main className="placeholder-page"><h1>{title}</h1><p>This route is wired as an empty application shell. Its feature chapter comes later.</p></main>;
+}
 
 export default function App() {
-  const [health, setHealth] = useState<HealthCheckResult | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [checking, setChecking] = useState(false);
-
-  async function checkBackend() {
-    setChecking(true);
-    setError(null);
-    try {
-      setHealth(await verifyApiConnection());
-    } catch (cause) {
-      setHealth(null);
-      setError(cause instanceof Error ? cause.message : "Unknown error");
-    } finally {
-      setChecking(false);
-    }
-  }
-
   return (
-    <main className="shell">
-      <section className="card" aria-labelledby="title">
-        <p className="eyebrow">TraVerse frontend foundation</p>
-        <h1 id="title">Frontend foundation is ready.</h1>
-        <p className="description">
-          Chapter 1 is intentionally small: verify the React toolchain and the
-          real Django health boundary before building application features.
-        </p>
-
-        <button type="button" onClick={checkBackend} disabled={checking}>
-          {checking ? "Checking backend…" : "Check backend health"}
-        </button>
-
-        {health && (
-          <div className="result success" role="status">
-            <strong>Backend healthy</strong>
-            <span>Database: {health.services.database}</span>
-            <span>Redis: {health.services.redis}</span>
-            <span>Django: {health.services.django}</span>
-          </div>
-        )}
-
-        {error && (
-          <div className="result error" role="alert">
-            <strong>Backend verification failed</strong>
-            <span>{error}</span>
-          </div>
-        )}
-      </section>
-    </main>
+    <Routes>
+      <Route path={routes.public.landing} element={<HomePage />} />
+      <Route path={routes.public.login} element={<PlaceholderPage title="Login" />} />
+      <Route path={routes.public.register} element={<PlaceholderPage title="Register" />} />
+      <Route path={routes.public.sharedItinerary} element={<PlaceholderPage title="Shared Itinerary" />} />
+      <Route element={<ProtectedRoute />}>
+        <Route path={routes.protected.dashboard} element={<PlaceholderPage title="Dashboard" />} />
+        <Route path={routes.protected.createTrip} element={<PlaceholderPage title="Create Trip" />} />
+        <Route path={routes.protected.tripDetail} element={<PlaceholderPage title="Trip Detail" />} />
+        <Route path={routes.protected.itinerary} element={<PlaceholderPage title="Itinerary" />} />
+        <Route path={routes.protected.budget} element={<PlaceholderPage title="Budget" />} />
+        <Route path={routes.protected.recommendations} element={<PlaceholderPage title="Recommendations" />} />
+        <Route path={routes.protected.packing} element={<PlaceholderPage title="Packing" />} />
+        <Route path={routes.protected.chat} element={<PlaceholderPage title="Chat" />} />
+        <Route path={routes.protected.profile} element={<PlaceholderPage title="Profile" />} />
+        <Route path={routes.protected.settings} element={<PlaceholderPage title="Settings" />} />
+        <Route path={routes.protected.bookings} element={<PlaceholderPage title="Bookings" />} />
+        <Route path={routes.protected.analyticsAdmin} element={<PlaceholderPage title="Analytics" />} />
+      </Route>
+      <Route path="*" element={<HomePage />} />
+    </Routes>
   );
 }
