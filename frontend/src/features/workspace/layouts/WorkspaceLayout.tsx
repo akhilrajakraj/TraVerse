@@ -44,7 +44,12 @@ export function WorkspaceLayout() {
             {navItems.map((item) => (
               <NavLink key={item.path} to={item.path} onClick={() => setMobileOpen(false)} className={({ isActive }) => `workspace-nav-item ${isActive ? "active" : ""}`}>
                 <span className="workspace-nav-icon">{item.icon}</span>
-                {!collapsed && <><span>{item.label}</span>{item.badge && <small>{item.badge}</small>}</>}
+                {!collapsed && (
+                  <>
+                    <span>{item.label}</span>
+                    {"badge" in item && item.badge ? <small>{item.badge}</small> : null}
+                  </>
+                )}
               </NavLink>
             ))}
           </nav>
