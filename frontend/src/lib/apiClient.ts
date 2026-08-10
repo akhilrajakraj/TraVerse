@@ -24,6 +24,22 @@ export function clearTokens() {
   localStorage.removeItem(REFRESH_KEY);
 }
 
+function defaultErrorMessage(status: number): string {
+  switch (status) {
+    case 400: return "Please check your request and try again.";
+    case 401: return "Your session has expired. Please log in again.";
+    case 403: return "You do not have permission to perform this action.";
+    case 404: return "We couldn't find the requested resource.";
+    case 409: return "This request conflicts with existing data.";
+    case 429: return "Too many requests. Please wait a moment and try again.";
+    case 500:
+    case 502:
+    case 503:
+    case 504: return "The TraVerse service is temporarily unavailable. Please try again shortly.";
+    default: return "Something went wrong while contacting TraVerse. Please try again.";
+  }
+}
+
 async function refreshAccessToken(): Promise<string> {
   if (refreshPromise) return refreshPromise;
   const refresh = getRefreshToken();
@@ -67,7 +83,8 @@ export async function apiRequest<T>(path: string, options: RequestInit = {}, ret
     const candidate = body as { errors?: { code?: string; message?: string } | string; detail?: string } | null;
     const errors = candidate?.errors;
     const code = typeof errors === "object" && errors && typeof errors.code === "string" ? errors.code : "request_failed";
-    const message = typeof errors === "object" && errors ? errors.message ?? `Request failed with status ${response.status}` : typeof errors === "string" ? errors : candidate?.detail ?? `Request failed with status ${response.status}`;
+    const serverMessage = typeof errors === "object" && errors ? errors.message : typeof errors === "string" ? errors : candidate?.detail;
+    const message = serverMessage && !/\b\d{3}\b/.test(serverMessage) ? serverMessage : defaultErrorMessage(response.status);
     throw new ApiRequestError(response.status, code, message);
   }
 
