@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import { ThemeProvider } from "../../theme/ThemeProvider";
@@ -17,8 +17,10 @@ describe("HomePage", () => {
         </MemoryRouter>
       </ThemeProvider>,
     );
+
     expect(screen.getByRole("heading", { name: /go somewhere/i })).toBeInTheDocument();
     expect(screen.getByPlaceholderText(/search destinations/i)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /plan a trip/i })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByTitle("Backend connection status")).toHaveTextContent("Ready"));
   });
 });
