@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useState, type FormEvent, type ReactNode } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "../../../components/ui/Button";
 import { Input } from "../../../components/ui/Input";
@@ -32,6 +32,6 @@ export function LoginPage() {
   </AuthShell>;
 }
 
-function AuthShell({ title, subtitle, children }: { title: string; subtitle: string; children: React.ReactNode }) {
+function AuthShell({ title, subtitle, children }: { title: string; subtitle: string; children: ReactNode }) {
   return <main className="auth-page"><div className="auth-card"><Link to="/" className="auth-brand"><span className="brand-mark">T</span>TraVerse</Link><h1>{title}</h1><p>{subtitle}</p>{children}</div></main>;
 }
