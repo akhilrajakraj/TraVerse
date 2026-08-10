@@ -66,7 +66,7 @@ export async function apiRequest<T>(path: string, options: RequestInit = {}, ret
     try { body = await response.json(); } catch { /* non-JSON response */ }
     const candidate = body as { errors?: { code?: string; message?: string } | string; detail?: string } | null;
     const errors = candidate?.errors;
-    const code = typeof errors === "object" && errors ? errors.code : "request_failed";
+    const code = typeof errors === "object" && errors ? errors.code : undefined;
     const message = typeof errors === "object" && errors ? errors.message : typeof errors === "string" ? errors : candidate?.detail ?? `Request failed with status ${response.status}`;
     throw new ApiRequestError(response.status, code ?? "request_failed", message);
   }
