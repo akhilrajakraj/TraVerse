@@ -19,7 +19,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    if (!getAccessToken()) { setIsLoading(false); return; }
+    if (!getAccessToken()) {
+      setIsLoading(false);
+      return;
+    }
     authApi.me().then(setUser).catch(() => clearTokens()).finally(() => setIsLoading(false));
   }, []);
 
@@ -30,12 +33,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   async function register(email: string, password: string, firstName: string, lastName: string) {
+    // Registration deliberately does not create a session. This keeps the
+    // public registration success state deterministic and lets the user
+    // explicitly choose when to sign in.
     await authApi.register(email, password, firstName, lastName);
-    await login(email, password);
   }
 
   async function logout() {
-    try { if (getRefreshToken()) await authApi.logout(); } catch { /* local logout must always succeed */ }
+    try {
+      if (getRefreshToken()) await authApi.logout();
+    } catch {
+      // Local logout must always succeed even when the server is unavailable.
+    }
     clearTokens();
     setUser(null);
   }
