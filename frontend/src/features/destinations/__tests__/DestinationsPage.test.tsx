@@ -1,0 +1,55 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { render, screen, waitFor } from "@testing-library/react";
+import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
+
+import { DestinationsPage } from "../pages/DestinationsPage";
+import * as destinationsApi from "../api/destinationsApi";
+
+function renderPage() {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return render(
+    <QueryClientProvider client={client}>
+      <DestinationsPage />
+    </QueryClientProvider>,
+  );
+}
+
+describe("DestinationsPage", () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  it("shows an empty state for zero results", async () => {
+    vi.spyOn(destinationsApi, "searchDestinations").mockResolvedValue({ count: 0, next: null, previous: null, results: [] });
+    renderPage();
+
+    await vi.advanceTimersByTimeAsync(400);
+    await waitFor(() => expect(screen.getByText("No destinations found. Try a different search term.")).toBeInTheDocument());
+  });
+
+  it("renders destination cards for results", async () => {
+    vi.spyOn(destinationsApi, "searchDestinations").mockResolvedValue({
+      count: 1,
+      next: null,
+      previous: null,
+      results: [{
+        id: "destination-1",
+        name: "Kyoto",
+        country: "Japan",
+        city: "Kyoto",
+        latitude: "35.0116",
+        longitude: "135.7681",
+        image_url: "",
+        is_active: true,
+        created_at: "",
+        updated_at: "",
+      }],
+    });
+    renderPage();
+
+    await vi.advanceTimersByTimeAsync(400);
+    await waitFor(() => {
+      expect(screen.getByText("Kyoto")).toBeInTheDocument();
+      expect(screen.getByText("Kyoto, Japan")).toBeInTheDocument();
+    });
+  });
+});
