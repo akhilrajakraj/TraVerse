@@ -15,44 +15,26 @@ from django.db.models import Q, QuerySet
 from apps.destinations.models import Destination
 
 
-def search_destinations(
-    *,
-    query: str,
-) -> QuerySet[Destination]:
+def search_destinations(*, query: str) -> QuerySet[Destination]:
     """
-    Search active destinations by name, country or city.
+    Search active destinations by name, country, city or descriptive metadata.
 
-    Parameters
-    ----------
-    query:
-        User search text.
-
-    Returns
-    -------
-    QuerySet[Destination]
-        Matching active destinations ordered consistently.
+    An empty query intentionally returns the active catalog so the same
+    endpoint supports both browsing and search.
     """
 
     query = query.strip()
 
-    if not query:
-        return Destination.objects.none()
+    destinations = Destination.objects.filter(is_active=True)
 
-    return (
-        Destination.objects.filter(
-            is_active=True,
-        )
-        .filter(
-            Q(name__icontains=query)
-            | Q(country__icontains=query)
-            | Q(city__icontains=query)
-            | Q(summary__icontains=query)
-            | Q(description__icontains=query)
-            | Q(tags__icontains=query)
-        )
-        .order_by(
-            "country",
-            "city",
-            "name",
-        )
-    )
+    if not query:
+        return destinations.order_by("country", "city", "name")
+
+    return destinations.filter(
+        Q(name__icontains=query)
+        | Q(country__icontains=query)
+        | Q(city__icontains=query)
+        | Q(summary__icontains=query)
+        | Q(description__icontains=query)
+        | Q(tags__icontains=query)
+    ).order_by("country", "city", "name")
