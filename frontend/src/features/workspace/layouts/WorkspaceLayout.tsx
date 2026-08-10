@@ -6,6 +6,7 @@ import { routes } from "../../../routes/routeConfig";
 
 const navItems = [
   { label: "Dashboard", path: routes.protected.dashboard, icon: "⌂" },
+  { label: "Destinations", path: routes.protected.destinations, icon: "◎" },
   { label: "AI Planner", path: routes.protected.planner, icon: "✦", badge: "AI" },
   { label: "Profile", path: routes.protected.profile, icon: "◉" },
   { label: "Saved Trips", path: routes.protected.saved, icon: "◇" },
