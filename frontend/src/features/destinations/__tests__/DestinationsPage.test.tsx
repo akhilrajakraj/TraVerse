@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 
 import { DestinationsPage } from "../pages/DestinationsPage";
@@ -22,8 +22,8 @@ describe("DestinationsPage", () => {
     vi.spyOn(destinationsApi, "searchDestinations").mockResolvedValue({ count: 0, next: null, previous: null, results: [] });
     renderPage();
 
-    await vi.advanceTimersByTimeAsync(400);
-    await waitFor(() => expect(screen.getByText("No destinations found. Try a different search term.")).toBeInTheDocument());
+    await vi.runAllTimersAsync();
+    expect(screen.getByText("No destinations found. Try a different search term.")).toBeInTheDocument();
   });
 
   it("renders destination cards for results", async () => {
@@ -46,10 +46,8 @@ describe("DestinationsPage", () => {
     });
     renderPage();
 
-    await vi.advanceTimersByTimeAsync(400);
-    await waitFor(() => {
-      expect(screen.getByText("Kyoto")).toBeInTheDocument();
-      expect(screen.getByText("Kyoto, Japan")).toBeInTheDocument();
-    });
+    await vi.runAllTimersAsync();
+    expect(screen.getByText("Kyoto")).toBeInTheDocument();
+    expect(screen.getByText("Kyoto, Japan")).toBeInTheDocument();
   });
 });
