@@ -13,6 +13,7 @@ import { WorkspaceLayout } from "../features/workspace/layouts/WorkspaceLayout";
 import { queryClient } from "../lib/queryClient";
 import { ProtectedRoute } from "../routes/ProtectedRoute";
 import { routes } from "../routes/routeConfig";
+import "../styles/workspace.css";
 
 function WorkspacePlaceholder({ title, description }: { title: string; description: string }) {
   return (
