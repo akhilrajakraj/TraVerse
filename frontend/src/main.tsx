@@ -1,17 +1,1 @@
-import { StrictMode } from "react";
-import { createRoot } from "react-dom/client";
-
-import App from "./App";
-import "./styles.css";
-
-const rootElement = document.getElementById("root");
-
-if (!rootElement) {
-  throw new Error("TraVerse root element was not found.");
-}
-
-createRoot(rootElement).render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
-);
+import { StrictMode } from "react";\nimport { createRoot } from "react-dom/client";\n\nimport App from "./app/App";\nimport "./styles/index.css";\n\nconst rootElement = document.getElementById("root");\nif (!rootElement) throw new Error("TraVerse root element was not found.");\n\ncreateRoot(rootElement).render(\n  <StrictMode>\n    <App />\n  </StrictMode>,\n);\n
