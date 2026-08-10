@@ -1,1 +1,1 @@
-export * from "./verifyApiConnection";\n
+export * from "./verifyApiConnection";
