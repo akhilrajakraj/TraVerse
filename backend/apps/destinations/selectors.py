@@ -15,10 +15,7 @@ from django.db.models import Q, QuerySet
 from apps.destinations.models import Destination
 
 
-def search_destinations(
-    *,
-    query: str,
-) -> QuerySet[Destination]:
+def search_destinations(*, query: str) -> QuerySet[Destination]:
     """
     Search active destinations by name, country or city.
 

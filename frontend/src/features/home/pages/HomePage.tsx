@@ -1,120 +1,131 @@
-import { useMemo, useState } from "react";
-import { ArrowRight, CalendarDays, Check, Compass, Menu, Search, Sparkles, X } from "lucide-react";
-import Compass3D from "../components/Compass3D";
-import BackgroundShader from "../components/BackgroundShader";
+import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 
-const interests = ["Food & Culture", "Nature", "History", "Nightlife"];
+import { Button } from "../../../components/ui/Button";
+import { ThemeToggle } from "../../../components/ui/ThemeToggle";
+import { verifyApiConnection } from "../../../lib/verifyApiConnection";
+import { BackgroundShader } from "../components/BackgroundShader";
+import { Compass3D } from "../components/Compass3D";
 
 export function HomePage() {
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [destination, setDestination] = useState("");
-  const [startDate, setStartDate] = useState("");
-  const [duration, setDuration] = useState("7");
-  const [style, setStyle] = useState("balanced");
-  const [pace, setPace] = useState("moderate");
-  const [selectedInterests, setSelectedInterests] = useState(["Food & Culture", "Nature"]);
-  const [generated, setGenerated] = useState(false);
+  const [health, setHealth] = useState<"checking" | "healthy" | "offline">("checking");
 
-  const destinationLabel = useMemo(() => destination.trim() || "your next destination", [destination]);
-
-  function toggleInterest(interest: string) {
-    setSelectedInterests((current) => current.includes(interest) ? current.filter((item) => item !== interest) : [...current, interest]);
-  }
-
-  function scrollToPlanner() {
-    document.getElementById("planner")?.scrollIntoView({ behavior: "smooth", block: "start" });
-  }
-
-  function generateItinerary(event: React.FormEvent) {
-    event.preventDefault();
-    setGenerated(true);
-  }
+  useEffect(() => {
+    let active = true;
+    verifyApiConnection()
+      .then(() => active && setHealth("healthy"))
+      .catch(() => active && setHealth("offline"));
+    return () => {
+      active = false;
+    };
+  }, []);
 
   return (
     <div className="home-page">
-      <header className="site-header">
-        <a className="brand" href="/" aria-label="TraVerse home">
-          <span className="brand-mark"><Compass size={21} /></span>
+      <BackgroundShader />
+      <header className="home-header">
+        <Link to="/" className="brand" aria-label="TraVerse home">
+          <span className="brand-mark">T</span>
           <span>TraVerse</span>
-        </a>
-        <nav className="desktop-nav" aria-label="Primary navigation">
+        </Link>
+        <nav className="home-nav" aria-label="Primary navigation">
           <a className="active" href="#discover">Discover</a>
           <a href="#planner">Itineraries</a>
-          <a href="#discover">Hotels</a>
-          <a href="#discover">Flights</a>
+          <a href="#stays">Hotels</a>
+          <a href="#flights">Flights</a>
         </nav>
-        <button className="plan-button" type="button" onClick={scrollToPlanner}><Compass size={18} /> Plan Trip</button>
-        <button className="menu-button" type="button" onClick={() => setMenuOpen((open) => !open)} aria-label="Toggle navigation" aria-expanded={menuOpen}>
-          {menuOpen ? <X /> : <Menu />}
-        </button>
-        {menuOpen && <nav className="mobile-nav"><a href="#discover" onClick={() => setMenuOpen(false)}>Discover</a><a href="#planner" onClick={() => setMenuOpen(false)}>Itineraries</a><a href="#discover" onClick={() => setMenuOpen(false)}>Hotels</a><a href="#discover" onClick={() => setMenuOpen(false)}>Flights</a></nav>}
+        <div className="header-actions">
+          <div className={`health-pill ${health}`} title="Backend connection status">
+            <span className="health-dot" />
+            {health === "checking" ? "Checking" : health === "healthy" ? "Ready" : "Offline"}
+          </div>
+          <ThemeToggle />
+          <Link to="/login" className="header-login">Sign in</Link>
+          <Link to="/planner"><Button className="plan-button">Plan a trip</Button></Link>
+        </div>
       </header>
 
       <main>
-        <section id="discover" className="hero">
-          <BackgroundShader />
-          <div className="hero-wash" />
-          <div className="hero-content">
-            <div className="hero-copy">
-              <p className="eyebrow"><Sparkles size={15} /> AI-powered travel planning</p>
-              <h1>Where will your next journey take you?</h1>
-              <p className="hero-description">I'm your expert AI itinerary assistant. Tell me a bit about your dream trip, and I'll handle the rest.</p>
-              <div className="search-box">
-                <Search className="search-icon" size={21} />
-                <input value={destination} onChange={(event) => setDestination(event.target.value)} onKeyDown={(event) => event.key === "Enter" && scrollToPlanner()} placeholder="Search destinations, experiences, or vibes..." aria-label="Search destinations" />
-                <button type="button" onClick={scrollToPlanner} aria-label="Start planning"><ArrowRight /></button>
-              </div>
-              <div className="hero-meta"><span>Personalized</span><span>•</span><span>Flexible</span><span>•</span><span>AI-assisted</span></div>
+        <section className="home-hero" id="discover">
+          <div className="hero-copy reveal reveal-one">
+            <span className="eyebrow-pill">AI-powered travel planning</span>
+            <h1>Go somewhere<br /><em>worth remembering.</em></h1>
+            <p className="hero-lead">
+              Tell TraVerse what you want from your next journey. We turn your destination,
+              pace, budget, and interests into a trip that feels made for you.
+            </p>
+            <div className="hero-search">
+              <span aria-hidden="true">⌕</span>
+              <input aria-label="Search travel ideas" placeholder="Search destinations, experiences, or vibes…" />
+              <Link to="/planner" className="search-submit" aria-label="Start planning">→</Link>
             </div>
-            <div className="compass-stage" aria-hidden="true"><Compass3D /></div>
+            <div className="hero-meta">
+              <span>✦ Personalized itineraries</span>
+              <span>◈ Smart budget planning</span>
+              <span>◎ Human-friendly AI</span>
+            </div>
+          </div>
+          <div className="hero-visual reveal reveal-two">
+            <Compass3D />
           </div>
         </section>
 
-        <section id="planner" className="planner-section">
-          <div className="section-heading">
-            <p className="eyebrow dark"><Compass size={15} /> Your trip, your way</p>
+        <section className="planner-section" id="planner">
+          <div className="section-heading reveal">
+            <span className="section-kicker">Your journey, your rules</span>
             <h2>Let's personalize your adventure.</h2>
-            <p>Fine-tune the details to create an itinerary that matches your style.</p>
+            <p>Start with the details that shape a great trip. Everything else can evolve later.</p>
           </div>
 
-          <form onSubmit={generateItinerary}>
-            <div className="preference-grid">
-              <article className="preference-card">
-                <div className="card-heading"><span className="icon-box"><CalendarDays /></span><h3>Dates &amp; Duration</h3></div>
-                <label>Start Date<input type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} /></label>
-                <label>Duration (Days)<input min="1" type="number" value={duration} onChange={(event) => setDuration(event.target.value)} /></label>
-              </article>
+          <div className="preference-grid">
+            <article className="preference-card reveal reveal-one">
+              <div className="preference-icon">◷</div>
+              <div><span className="card-kicker">01 · Timing</span><h3>When are you going?</h3></div>
+              <label>Start date<input type="date" /></label>
+              <label>Duration<input min="1" placeholder="e.g. 7 days" type="number" /></label>
+            </article>
 
-              <article className="preference-card">
-                <div className="card-heading"><span className="icon-box orange"><Sparkles /></span><h3>Travel Style</h3></div>
-                <div className="option-stack">
-                  {["budget", "balanced", "luxury"].map((value) => <label className={`choice ${style === value ? "selected" : ""}`} key={value}><input type="radio" name="style" value={value} checked={style === value} onChange={(event) => setStyle(event.target.value)} /><span>{value === "budget" ? "Budget-friendly" : value[0].toUpperCase() + value.slice(1)}</span></label>)}
-                </div>
-              </article>
+            <article className="preference-card reveal reveal-two">
+              <div className="preference-icon orange">✦</div>
+              <div><span className="card-kicker">02 · Style</span><h3>How do you like to travel?</h3></div>
+              <div className="choice-list">
+                {[["budget", "Budget-friendly", "Keep costs intentional"], ["balanced", "Balanced", "A little of everything"], ["luxury", "Luxury", "Make it memorable"]].map(([value, title, detail], index) => (
+                  <label className="choice" key={value}>
+                    <input defaultChecked={index === 1} name="travel-style" type="radio" value={value} />
+                    <span><strong>{title}</strong><small>{detail}</small></span>
+                  </label>
+                ))}
+              </div>
+            </article>
 
-              <article className="preference-card">
-                <div className="card-heading"><span className="icon-box"><Compass /></span><h3>Pace &amp; Focus</h3></div>
-                <label>Pace</label>
-                <div className="segmented">
-                  {["relaxed", "moderate", "fast"].map((value) => <label key={value}><input type="radio" name="pace" value={value} checked={pace === value} onChange={(event) => setPace(event.target.value)} /><span>{value[0].toUpperCase() + value.slice(1)}</span></label>)}
-                </div>
-                <label>Interests</label>
-                <div className="chips">{interests.map((interest) => <button className={`chip ${selectedInterests.includes(interest) ? "selected" : ""}`} key={interest} type="button" onClick={() => toggleInterest(interest)}>{selectedInterests.includes(interest) && <Check size={14} />}{interest}</button>)}</div>
-              </article>
-            </div>
+            <article className="preference-card reveal reveal-three">
+              <div className="preference-icon blue">✧</div>
+              <div><span className="card-kicker">03 · Pace</span><h3>What should the days feel like?</h3></div>
+              <div className="pace-grid">
+                <label><input defaultChecked name="pace" type="radio" /><span>Slow<br /><small>Unhurried</small></span></label>
+                <label><input name="pace" type="radio" /><span>Balanced<br /><small>Flexible</small></span></label>
+                <label><input name="pace" type="radio" /><span>Active<br /><small>Full days</small></span></label>
+              </div>
+              <label>What are you into?<input placeholder="Food, beaches, art, hiking…" /></label>
+            </article>
+          </div>
 
-            <div className="generate-area">
-              <p className="destination-summary">Planning <strong>{destinationLabel}</strong> · {duration || "—"} days · {style} · {pace}</p>
-              <button className="generate-button" type="submit"><Sparkles size={19} /> Generate My Itinerary <ArrowRight size={19} /></button>
-              {generated && <p className="success-note" role="status">Your preferences are ready. The AI itinerary workflow will connect here in the next feature chapter.</p>}
-            </div>
-          </form>
+          <div className="planner-cta reveal">
+            <div><span className="section-kicker">Ready when you are</span><h3>Turn a few ideas into a real journey.</h3></div>
+            <Link to="/planner"><Button className="cta-button">Start planning <span>→</span></Button></Link>
+          </div>
+        </section>
+
+        <section className="feature-strip" id="stays">
+          <div><span>01</span><strong>Discover</strong><p>Find places that match your mood, not just a map.</p></div>
+          <div><span>02</span><strong>Plan</strong><p>Build a practical itinerary around your real constraints.</p></div>
+          <div><span>03</span><strong>Explore</strong><p>Keep every trip detail together, from flights to documents.</p></div>
         </section>
       </main>
 
-      <footer className="site-footer">
-        <div><div className="footer-brand">TraVerse</div><p>Your intelligent travel co-pilot for seamless trip planning and routing.</p></div>
-        <nav><a href="#discover">About</a><a href="#planner">Plan</a><a href="#discover">Safety</a><a href="#discover">Privacy</a></nav>
+      <footer className="home-footer" id="flights">
+        <span>© {new Date().getFullYear()} TraVerse</span>
+        <span>Travel farther. Plan smarter.</span>
       </footer>
     </div>
   );
