@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { DestinationsPage } from "../pages/DestinationsPage";
 import * as destinationsApi from "../api/destinationsApi";
@@ -56,8 +56,13 @@ describe("DestinationsPage", () => {
       target: { value: "unknown" },
     });
 
-    await vi.runAllTimersAsync();
-    expect(screen.getByText("No destinations found. Try a different search term.")).toBeInTheDocument();
+    await act(async () => {
+      await vi.runAllTimersAsync();
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("No destinations found. Try a different search term.")).toBeInTheDocument();
+    });
   });
 
   it("renders destination cards for search results", async () => {
@@ -84,8 +89,13 @@ describe("DestinationsPage", () => {
       target: { value: "kyoto" },
     });
 
-    await vi.runAllTimersAsync();
-    expect(screen.getByText("Kyoto")).toBeInTheDocument();
-    expect(screen.getByText("Kyoto, Japan")).toBeInTheDocument();
+    await act(async () => {
+      await vi.runAllTimersAsync();
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("Kyoto")).toBeInTheDocument();
+      expect(screen.getByText("Kyoto, Japan")).toBeInTheDocument();
+    });
   });
 });
