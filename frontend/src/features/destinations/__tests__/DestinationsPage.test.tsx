@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 
 import { DestinationsPage } from "../pages/DestinationsPage";
@@ -18,15 +18,19 @@ describe("DestinationsPage", () => {
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => vi.useRealTimers());
 
-  it("shows an empty state for zero results", async () => {
+  it("shows an empty state for zero search results", async () => {
     vi.spyOn(destinationsApi, "searchDestinations").mockResolvedValue({ count: 0, next: null, previous: null, results: [] });
     renderPage();
+
+    fireEvent.change(screen.getByRole("textbox", { name: "Search destinations" }), {
+      target: { value: "unknown" },
+    });
 
     await vi.runAllTimersAsync();
     expect(screen.getByText("No destinations found. Try a different search term.")).toBeInTheDocument();
   });
 
-  it("renders destination cards for results", async () => {
+  it("renders destination cards for search results", async () => {
     vi.spyOn(destinationsApi, "searchDestinations").mockResolvedValue({
       count: 1,
       next: null,
@@ -45,6 +49,10 @@ describe("DestinationsPage", () => {
       }],
     });
     renderPage();
+
+    fireEvent.change(screen.getByRole("textbox", { name: "Search destinations" }), {
+      target: { value: "kyoto" },
+    });
 
     await vi.runAllTimersAsync();
     expect(screen.getByText("Kyoto")).toBeInTheDocument();
