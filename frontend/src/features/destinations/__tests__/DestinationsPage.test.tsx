@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 
 import { DestinationsPage } from "../pages/DestinationsPage";
 import * as destinationsApi from "../api/destinationsApi";
@@ -15,9 +15,6 @@ function renderPage() {
 }
 
 describe("DestinationsPage", () => {
-  beforeEach(() => vi.useFakeTimers());
-  afterEach(() => vi.useRealTimers());
-
   it("shows an empty state for zero search results", async () => {
     vi.spyOn(destinationsApi, "getDestinations").mockResolvedValue({
       count: 2,
@@ -56,13 +53,9 @@ describe("DestinationsPage", () => {
       target: { value: "unknown" },
     });
 
-    await act(async () => {
-      await vi.runAllTimersAsync();
-    });
-
     await waitFor(() => {
       expect(screen.getByText("No destinations found. Try a different search term.")).toBeInTheDocument();
-    });
+    }, { timeout: 2000 });
   });
 
   it("renders destination cards for search results", async () => {
@@ -89,13 +82,9 @@ describe("DestinationsPage", () => {
       target: { value: "kyoto" },
     });
 
-    await act(async () => {
-      await vi.runAllTimersAsync();
-    });
-
     await waitFor(() => {
       expect(screen.getByText("Kyoto")).toBeInTheDocument();
       expect(screen.getByText("Kyoto, Japan")).toBeInTheDocument();
-    });
+    }, { timeout: 2000 });
   });
 });
