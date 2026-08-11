@@ -68,3 +68,6 @@ dist/
 *.bak
 
 backend/logs/*.log
+# Node dependencies
+node_modules/
+**/node_modules/
