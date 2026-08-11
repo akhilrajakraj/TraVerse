@@ -8,9 +8,7 @@ import { useDestinationSearch } from "../hooks/useDestinationSearch";
 
 export function DestinationsPage() {
   const [searchTerm, setSearchTerm] = useState("");
-  const { data, isLoading, isFetching, isError, error, refetch } = useDestinationSearch(searchTerm, {
-    includeEmpty: true,
-  });
+  const { data, isLoading, isFetching, isError, error, refetch } = useDestinationSearch(searchTerm);
 
   return (
     <main className="min-h-screen bg-[var(--bg)] px-5 py-12 text-[var(--text)] sm:px-8">
