@@ -13,40 +13,54 @@ function createWrapper() {
   );
 }
 
+const destinations = [
+  {
+    id: "tokyo",
+    name: "Tokyo",
+    country: "Japan",
+    city: "Tokyo",
+    latitude: "35.6762",
+    longitude: "139.6503",
+    image_url: "",
+    is_active: true,
+    created_at: "",
+    updated_at: "",
+  },
+  {
+    id: "paris",
+    name: "Paris",
+    country: "France",
+    city: "Paris",
+    latitude: "48.8566",
+    longitude: "2.3522",
+    image_url: "",
+    is_active: true,
+    created_at: "",
+    updated_at: "",
+  },
+];
+
 describe("useDestinationSearch", () => {
-  it("caches distinct search terms and reuses a previous term", async () => {
-    const searchSpy = vi.spyOn(destinationsApi, "searchDestinations").mockImplementation((term) =>
-      Promise.resolve({
-        count: 1,
-        next: null,
-        previous: null,
-        results: [{
-          id: term,
-          name: term,
-          country: "X",
-          city: "Y",
-          latitude: "0",
-          longitude: "0",
-          image_url: "",
-          is_active: true,
-          created_at: "",
-          updated_at: "",
-        }],
-      }),
-    );
+  it("filters the shared catalog without changing the backend request", async () => {
+    const getDestinationsSpy = vi.spyOn(destinationsApi, "getDestinations").mockResolvedValue({
+      count: destinations.length,
+      next: null,
+      previous: null,
+      results: destinations,
+    });
 
     const { result, rerender } = renderHook(({ term }) => useDestinationSearch(term), {
       wrapper: createWrapper(),
       initialProps: { term: "tokyo" },
     });
 
-    await waitFor(() => expect(result.current.data?.results[0].name).toBe("tokyo"));
+    await waitFor(() => expect(result.current.data?.results[0].name).toBe("Tokyo"));
     rerender({ term: "paris" });
-    await waitFor(() => expect(result.current.data?.results[0].name).toBe("paris"));
+    await waitFor(() => expect(result.current.data?.results[0].name).toBe("Paris"));
     rerender({ term: "tokyo" });
-    await waitFor(() => expect(result.current.data?.results[0].name).toBe("tokyo"));
+    await waitFor(() => expect(result.current.data?.results[0].name).toBe("Tokyo"));
 
-    expect(searchSpy).toHaveBeenCalledTimes(2);
-    searchSpy.mockRestore();
+    expect(getDestinationsSpy).toHaveBeenCalledTimes(1);
+    getDestinationsSpy.mockRestore();
   });
 });
