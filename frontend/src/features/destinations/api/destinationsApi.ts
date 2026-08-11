@@ -14,12 +14,11 @@ export interface Destination {
   updated_at: string;
 }
 
-export function searchDestinations(searchTerm: string): Promise<PaginatedResponse<Destination>> {
-  const params = new URLSearchParams();
-  if (searchTerm.trim()) params.set("search", searchTerm.trim());
-
-  const query = params.toString();
-  return apiRequest<PaginatedResponse<Destination>>(
-    `/api/destinations/${query ? `?${query}` : ""}`,
-  );
+/**
+ * The backend destination endpoint exposes the active catalog. Search is
+ * intentionally kept client-side so the frontend does not change the
+ * established backend API contract.
+ */
+export function getDestinations(): Promise<PaginatedResponse<Destination>> {
+  return apiRequest<PaginatedResponse<Destination>>("/api/destinations/");
 }
