@@ -19,9 +19,39 @@ describe("DestinationsPage", () => {
   afterEach(() => vi.useRealTimers());
 
   it("shows an empty state for zero search results", async () => {
-    vi.spyOn(destinationsApi, "searchDestinations").mockResolvedValue({ count: 0, next: null, previous: null, results: [] });
-    renderPage();
+    vi.spyOn(destinationsApi, "getDestinations").mockResolvedValue({
+      count: 2,
+      next: null,
+      previous: null,
+      results: [
+        {
+          id: "destination-1",
+          name: "Kyoto",
+          country: "Japan",
+          city: "Kyoto",
+          latitude: "35.0116",
+          longitude: "135.7681",
+          image_url: "",
+          is_active: true,
+          created_at: "",
+          updated_at: "",
+        },
+        {
+          id: "destination-2",
+          name: "Paris",
+          country: "France",
+          city: "Paris",
+          latitude: "48.8566",
+          longitude: "2.3522",
+          image_url: "",
+          is_active: true,
+          created_at: "",
+          updated_at: "",
+        },
+      ],
+    });
 
+    renderPage();
     fireEvent.change(screen.getByRole("textbox", { name: "Search destinations" }), {
       target: { value: "unknown" },
     });
@@ -31,7 +61,7 @@ describe("DestinationsPage", () => {
   });
 
   it("renders destination cards for search results", async () => {
-    vi.spyOn(destinationsApi, "searchDestinations").mockResolvedValue({
+    vi.spyOn(destinationsApi, "getDestinations").mockResolvedValue({
       count: 1,
       next: null,
       previous: null,
@@ -48,8 +78,8 @@ describe("DestinationsPage", () => {
         updated_at: "",
       }],
     });
-    renderPage();
 
+    renderPage();
     fireEvent.change(screen.getByRole("textbox", { name: "Search destinations" }), {
       target: { value: "kyoto" },
     });
