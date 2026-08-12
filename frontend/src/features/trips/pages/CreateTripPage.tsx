@@ -4,7 +4,6 @@ import { Button } from "../../../components/ui/Button";
 import { Card } from "../../../components/ui/Card";
 import { ErrorState } from "../../../components/ui/ErrorState";
 import type { Destination } from "../../destinations/api/destinationsApi";
-import { routes } from "../../../routes/routeConfig";
 import { DestinationPicker } from "../components/DestinationPicker";
 import { useCreateTrip } from "../hooks/useCreateTrip";
 
