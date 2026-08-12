@@ -14,36 +14,52 @@ function renderPage() {
   );
 }
 
+const destination = {
+  id: "destination-1",
+  name: "Kyoto",
+  country: "Japan",
+  city: "Kyoto",
+  latitude: "35.0116",
+  longitude: "135.7681",
+  image_url: "",
+  is_active: true,
+  created_at: "",
+  updated_at: "",
+};
+
 describe("DestinationsPage", () => {
+  it("loads and renders the catalog without requiring a search term", async () => {
+    const getDestinationsSpy = vi.spyOn(destinationsApi, "getDestinations").mockResolvedValue({
+      count: 1,
+      next: null,
+      previous: null,
+      results: [destination],
+    });
+
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByText("Kyoto")).toBeInTheDocument();
+      expect(screen.getByText("Kyoto, Japan")).toBeInTheDocument();
+    });
+
+    expect(getDestinationsSpy).toHaveBeenCalledTimes(1);
+    getDestinationsSpy.mockRestore();
+  });
+
   it("shows an empty state for zero search results", async () => {
     vi.spyOn(destinationsApi, "getDestinations").mockResolvedValue({
       count: 2,
       next: null,
       previous: null,
       results: [
+        destination,
         {
-          id: "destination-1",
-          name: "Kyoto",
-          country: "Japan",
-          city: "Kyoto",
-          latitude: "35.0116",
-          longitude: "135.7681",
-          image_url: "",
-          is_active: true,
-          created_at: "",
-          updated_at: "",
-        },
-        {
+          ...destination,
           id: "destination-2",
           name: "Paris",
           country: "France",
           city: "Paris",
-          latitude: "48.8566",
-          longitude: "2.3522",
-          image_url: "",
-          is_active: true,
-          created_at: "",
-          updated_at: "",
         },
       ],
     });
@@ -63,18 +79,7 @@ describe("DestinationsPage", () => {
       count: 1,
       next: null,
       previous: null,
-      results: [{
-        id: "destination-1",
-        name: "Kyoto",
-        country: "Japan",
-        city: "Kyoto",
-        latitude: "35.0116",
-        longitude: "135.7681",
-        image_url: "",
-        is_active: true,
-        created_at: "",
-        updated_at: "",
-      }],
+      results: [destination],
     });
 
     renderPage();
