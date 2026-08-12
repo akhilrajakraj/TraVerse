@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { useTrips } from "../hooks/useTrips";
 import * as tripsApi from "../api/tripsApi";
@@ -14,7 +14,9 @@ function createWrapper() {
 }
 
 describe("useTrips", () => {
-  it("normalizes the current array response into the shared list shape", async () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it("returns the shared list shape for the current trip response", async () => {
     const trips = [
       {
         id: "trip-1",
