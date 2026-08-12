@@ -3,14 +3,18 @@ import { useQuery } from "@tanstack/react-query";
 import { useDebounce } from "../../../hooks/useDebounce";
 import { getDestinations, type Destination } from "../api/destinationsApi";
 
+const DESTINATIONS_QUERY_KEY = ["destinations", "catalog"] as const;
+const DESTINATIONS_STALE_TIME = 5 * 60 * 1000;
+
 export function useDestinationSearch(searchTerm: string) {
   const debouncedTerm = useDebounce(searchTerm, 400).trim().toLowerCase();
 
   const query = useQuery({
-    queryKey: ["destinations", "catalog"],
+    queryKey: DESTINATIONS_QUERY_KEY,
     queryFn: getDestinations,
-    enabled: debouncedTerm.length > 0,
-    staleTime: 5 * 60 * 1000,
+    // The backend exposes one active catalog endpoint. An empty search term
+    // must browse that catalog, so the query is always enabled.
+    staleTime: DESTINATIONS_STALE_TIME,
   });
 
   const results = query.data?.results.filter((destination: Destination) => {
