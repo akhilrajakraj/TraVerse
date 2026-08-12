@@ -1,0 +1,172 @@
+import { useEffect, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+
+import { ApiRequestError } from "../../../lib/apiClient";
+import { agentRunStatusColors } from "../../../lib/statusColors";
+import { Button } from "../../../components/ui/Button";
+import { Card } from "../../../components/ui/Card";
+import { ErrorState } from "../../../components/ui/ErrorState";
+import { Spinner } from "../../../components/ui/Spinner";
+import { StatusBadge } from "../../../components/ui/StatusBadge";
+import { useTriggerTripPlan } from "../hooks/useTriggerTripPlan";
+import { tripPlanStatusQueryKey, useTripPlanStatus } from "../hooks/useTripPlanStatus";
+
+interface TripAIPlannerPanelProps {
+  tripId: string;
+}
+
+const POLL_BRIDGE_MS = 30_000;
+
+export function TripAIPlannerPanel({ tripId }: TripAIPlannerPanelProps) {
+  const queryClient = useQueryClient();
+  const trigger = useTriggerTripPlan();
+  const [pollUntil, setPollUntil] = useState<number | null>(null);
+  const invalidatedRunId = useRef<string | null>(null);
+  const statusQuery = useTripPlanStatus(tripId, { pollUntil });
+
+  const status = statusQuery.data;
+  const statusError = statusQuery.error;
+  const notStarted =
+    statusError instanceof ApiRequestError && statusError.status === 404;
+  const isActive = status?.status === "pending" || status?.status === "running";
+  const isTerminal =
+    status?.status === "succeeded" ||
+    status?.status === "failed" ||
+    status?.status === "needs_review";
+
+  useEffect(() => {
+    if (!status || status.status !== "succeeded") return;
+    if (invalidatedRunId.current === status.id) return;
+
+    invalidatedRunId.current = status.id;
+    setPollUntil(null);
+
+    void Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["trips", tripId] }),
+      queryClient.invalidateQueries({
+        queryKey: ["itinerary", "trip", tripId],
+      }),
+      queryClient.invalidateQueries({
+        queryKey: ["budget", "trip", tripId],
+      }),
+      queryClient.invalidateQueries({
+        queryKey: ["recommendations", "trip", tripId],
+      }),
+    ]);
+  }, [queryClient, status, tripId]);
+
+  function handleTrigger() {
+    setPollUntil(Date.now() + POLL_BRIDGE_MS);
+    trigger.mutate(tripId);
+  }
+
+  const showInitialStatusError =
+    statusQuery.isError && !notStarted && pollUntil === null;
+  const showQueuedStatus =
+    trigger.isSuccess && !status && (notStarted || statusQuery.isError);
+
+  return (
+    <section className="mt-8 border-t border-[var(--line)] pt-6" aria-labelledby="ai-planner-heading">
+      <div className="mb-5">
+        <span className="section-kicker">AI Planner</span>
+        <h2 id="ai-planner-heading" className="mt-1 text-xl font-semibold">
+          Generate a trip plan
+        </h2>
+        <p className="mt-2 text-sm text-neutral">
+          Ask the existing TraVerse planning workflow to generate an itinerary and its connected trip data.
+        </p>
+      </div>
+
+      {showInitialStatusError ? (
+        <ErrorState
+          title="Planner status unavailable"
+          message={
+            statusError instanceof Error
+              ? statusError.message
+              : "We couldn't retrieve the AI planner status."
+          }
+          onRetry={() => void statusQuery.refetch()}
+        />
+      ) : null}
+
+      {statusQuery.isLoading && !status ? <Spinner label="Checking planner status..." /> : null}
+
+      {status ? (
+        <Card>
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <p className="text-sm font-semibold">Travel planner run</p>
+              <p className="mt-1 text-sm text-neutral">
+                {status.status === "succeeded"
+                  ? "Your AI-generated trip data is ready."
+                  : status.status === "failed"
+                    ? "The planning run failed. You can try again."
+                    : status.status === "needs_review"
+                      ? "The planning run needs review before its result can be treated as complete."
+                      : "The planning workflow is running asynchronously."}
+              </p>
+            </div>
+            <StatusBadge status={status.status} colorMap={agentRunStatusColors} />
+          </div>
+
+          {status.error_message ? (
+            <p className="mt-4 text-sm text-danger" role="alert">
+              {status.error_message}
+            </p>
+          ) : null}
+
+          {status.status === "succeeded" ? (
+            <p className="mt-4 text-sm text-neutral">
+              Itinerary, budget, and recommendation panels will refresh from the authoritative server state.
+            </p>
+          ) : null}
+        </Card>
+      ) : null}
+
+      {showQueuedStatus ? (
+        <Card className="mt-4">
+          <p className="font-semibold">Planning request queued</p>
+          <p className="mt-1 text-sm text-neutral">
+            The planner has accepted the request. Waiting for the asynchronous Agent Run to appear.
+          </p>
+        </Card>
+      ) : null}
+
+      {pollUntil !== null && !isActive && !isTerminal && !statusQuery.isLoading ? (
+        <p className="mt-3 text-sm text-neutral" role="status">
+          Waiting for the planner worker to start...
+        </p>
+      ) : null}
+
+      {trigger.isError ? (
+        <div className="mt-4" role="alert">
+          <ErrorState
+            title="Unable to start AI planning"
+            message={
+              trigger.error instanceof Error
+                ? trigger.error.message
+                : "We couldn't queue the planning request."
+            }
+          />
+        </div>
+      ) : null}
+
+      <div className="mt-5 flex flex-wrap items-center gap-3">
+        <Button
+          type="button"
+          onClick={handleTrigger}
+          isLoading={trigger.isPending}
+          disabled={trigger.isPending || Boolean(isActive) || Boolean(pollUntil)}
+        >
+          {status?.status === "succeeded" || status?.status === "failed" || status?.status === "needs_review"
+            ? "Run AI planner again"
+            : "Generate AI trip plan"}
+        </Button>
+
+        {pollUntil !== null ? (
+          <span className="text-sm text-neutral">Checking planner status automatically.</span>
+        ) : null}
+      </div>
+    </section>
+  );
+}
