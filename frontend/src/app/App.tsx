@@ -7,6 +7,8 @@ import { RegisterPage } from "../features/auth/pages/RegisterPage";
 import { DestinationsPage } from "../features/destinations/pages/DestinationsPage";
 import { HomePage } from "../features/home/pages/HomePage";
 import { ProfilePage } from "../features/profile/pages/ProfilePage";
+import { CreateTripPage } from "../features/trips/pages/CreateTripPage";
+import { TripDetailPage } from "../features/trips/pages/TripDetailPage";
 import { ThemeProvider } from "../features/theme/ThemeProvider";
 import { DashboardView } from "../features/workspace/views/DashboardView";
 import { PlannerView } from "../features/workspace/views/PlannerView";
@@ -40,6 +42,8 @@ export default function App() {
               <Route element={<ProtectedRoute />}>
                 <Route element={<WorkspaceLayout />}>
                   <Route path={routes.protected.dashboard} element={<DashboardView />} />
+                  <Route path={routes.protected.createTrip} element={<CreateTripPage />} />
+                  <Route path={routes.protected.tripDetail} element={<TripDetailPage />} />
                   <Route path={routes.protected.planner} element={<PlannerView />} />
                   <Route path={routes.protected.destinations} element={<DestinationsPage />} />
                   <Route path={routes.protected.profile} element={<ProfilePage />} />
