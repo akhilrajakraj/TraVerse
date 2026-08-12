@@ -6,6 +6,7 @@ import { Spinner } from "../../../components/ui/Spinner";
 import { StatusBadge } from "../../../components/ui/StatusBadge";
 import { routes } from "../../../routes/routeConfig";
 import { tripStatusColors } from "../../../lib/statusColors";
+import { TripBudgetPanel } from "../../budget/components/TripBudgetPanel";
 import { TripItineraryPanel } from "../../itinerary/components/TripItineraryPanel";
 import { useTrip } from "../hooks/useTrip";
 
@@ -84,18 +85,18 @@ export function TripDetailPage() {
         ) : null}
 
         <TripItineraryPanel tripId={trip.id} />
+        <TripBudgetPanel tripId={trip.id} />
 
         <section className="mt-8 border-t border-[var(--line)] pt-6">
           <div className="mb-3">
             <span className="section-kicker">Coming next</span>
             <h2 className="mt-1 text-xl font-semibold">Build the rest of your journey</h2>
             <p className="mt-2 text-sm text-neutral">
-              Budget, recommendations, and AI planning will attach to this trip in the upcoming chapters.
+              Recommendations and AI planning will attach to this trip in the upcoming chapters.
             </p>
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             {[
-              ["Budget", "Trip cost planning"],
               ["Recommendations", "Places and activities"],
             ].map(([title, description]) => (
               <Card key={title} className="p-4">
