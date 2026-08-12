@@ -54,11 +54,12 @@ class SeedFakeRecommendationsCommandTests(TestCase):
         )
 
         self.assertEqual(recommendations.count(), 4)
+        self.assertTrue(all(item.is_ai_generated for item in recommendations))
         self.assertTrue(
-            all(item.is_ai_generated for item in recommendations)
-        )
-        self.assertTrue(
-            all("" < str(item.score) <= "0.99" for item in recommendations)
+            all(
+                Decimal("0.50") <= item.score <= Decimal("0.99")
+                for item in recommendations
+            )
         )
 
     def test_seed_falls_back_to_active_catalog_destination(self):
@@ -77,12 +78,9 @@ class SeedFakeRecommendationsCommandTests(TestCase):
             stdout=StringIO(),
         )
 
-        self.assertEqual(
-            Recommendation.objects.filter(trip=empty_trip).count(),
-            2,
-        )
+        recommendations = Recommendation.objects.filter(trip=empty_trip)
 
-        self.assertEqual(
-            Recommendation.objects.filter(trip=empty_trip).first().destination,
-            self.destination,
+        self.assertEqual(recommendations.count(), 2)
+        self.assertTrue(
+            all(item.destination == self.destination for item in recommendations)
         )
