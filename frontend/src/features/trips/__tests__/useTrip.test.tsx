@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { useTrip } from "../hooks/useTrip";
 import * as tripsApi from "../api/tripsApi";
@@ -14,6 +14,8 @@ function createWrapper() {
 }
 
 describe("useTrip", () => {
+  afterEach(() => vi.restoreAllMocks());
+
   it("does not request a trip when no id is available", () => {
     const fetchTripSpy = vi.spyOn(tripsApi, "fetchTrip").mockResolvedValue({
       id: "trip-1",
