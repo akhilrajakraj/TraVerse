@@ -72,7 +72,10 @@ describe("TripAIPlannerPanel", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Generate AI trip plan" }));
 
-    expect(mutate).toHaveBeenCalledWith("trip-1");
+    expect(mutate).toHaveBeenCalledWith(
+      "trip-1",
+      expect.objectContaining({ onError: expect.any(Function) }),
+    );
   });
 
   it("renders an active backend-controlled AgentRun status", () => {
