@@ -212,7 +212,6 @@ export function TripRecommendationsPanel({ tripId }: TripRecommendationsPanelPro
                         </div>
                       ) : null}
 
-                      {accept.isError && isAccepting === false && reject.isError === false ? null : null}
                       {accept.isError && accept.variables?.recommendationId === recommendation.id ? (
                         <p className="mt-3 text-sm text-red-600" role="alert">
                           {accept.error instanceof Error
