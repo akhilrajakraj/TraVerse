@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { CreateTripPage } from "../pages/CreateTripPage";
 
@@ -22,6 +22,8 @@ vi.mock("../../destinations/hooks/useDestinationSearch", () => ({
 }));
 
 describe("CreateTripPage", () => {
+  beforeEach(() => mutate.mockClear());
+
   it("submits the backend-compatible trip payload without a status field", () => {
     render(<CreateTripPage />);
 
