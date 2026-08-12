@@ -9,7 +9,7 @@ import { ErrorState } from "../../../components/ui/ErrorState";
 import { Spinner } from "../../../components/ui/Spinner";
 import { StatusBadge } from "../../../components/ui/StatusBadge";
 import { useTriggerTripPlan } from "../hooks/useTriggerTripPlan";
-import { tripPlanStatusQueryKey, useTripPlanStatus } from "../hooks/useTripPlanStatus";
+import { useTripPlanStatus } from "../hooks/useTripPlanStatus";
 
 interface TripAIPlannerPanelProps {
   tripId: string;
@@ -35,35 +35,39 @@ export function TripAIPlannerPanel({ tripId }: TripAIPlannerPanelProps) {
     status?.status === "needs_review";
 
   useEffect(() => {
-    if (!status || status.status !== "succeeded") return;
-    if (invalidatedRunId.current === status.id) return;
+    if (pollUntil === null) return;
+
+    const remaining = Math.max(0, pollUntil - Date.now());
+    const timeout = window.setTimeout(() => setPollUntil(null), remaining);
+
+    return () => window.clearTimeout(timeout);
+  }, [pollUntil]);
+
+  useEffect(() => {
+    if (!status || !isTerminal) return;
+    setPollUntil(null);
+
+    if (status.status !== "succeeded" || invalidatedRunId.current === status.id) {
+      return;
+    }
 
     invalidatedRunId.current = status.id;
-    setPollUntil(null);
 
     void Promise.all([
       queryClient.invalidateQueries({ queryKey: ["trips", tripId] }),
-      queryClient.invalidateQueries({
-        queryKey: ["itinerary", "trip", tripId],
-      }),
-      queryClient.invalidateQueries({
-        queryKey: ["budget", "trip", tripId],
-      }),
-      queryClient.invalidateQueries({
-        queryKey: ["recommendations", "trip", tripId],
-      }),
+      queryClient.invalidateQueries({ queryKey: ["itinerary", "trip", tripId] }),
+      queryClient.invalidateQueries({ queryKey: ["budget", "trip", tripId] }),
+      queryClient.invalidateQueries({ queryKey: ["recommendations", "trip", tripId] }),
     ]);
-  }, [queryClient, status, tripId]);
+  }, [isTerminal, queryClient, status, tripId]);
 
   function handleTrigger() {
     setPollUntil(Date.now() + POLL_BRIDGE_MS);
     trigger.mutate(tripId);
   }
 
-  const showInitialStatusError =
-    statusQuery.isError && !notStarted && pollUntil === null;
-  const showQueuedStatus =
-    trigger.isSuccess && !status && (notStarted || statusQuery.isError);
+  const showInitialStatusError = statusQuery.isError && !notStarted && pollUntil === null;
+  const showQueuedStatus = trigger.isSuccess && !status && (notStarted || statusQuery.isError);
 
   return (
     <section className="mt-8 border-t border-[var(--line)] pt-6" aria-labelledby="ai-planner-heading">
