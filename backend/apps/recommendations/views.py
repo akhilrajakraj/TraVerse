@@ -10,9 +10,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.recommendations.models import Recommendation
-from apps.recommendations.selectors import (
-    get_trip_recommendations,
-)
+from apps.recommendations.selectors import get_trip_recommendations
 from apps.recommendations.serializers import RecommendationSerializer
 from apps.recommendations.services import (
     accept_recommendation,
@@ -22,9 +20,7 @@ from apps.trips.models import Trip
 
 
 class TripRecommendationsView(APIView):
-    """
-    Retrieve all recommendations belonging to a trip.
-    """
+    """Retrieve recommendations belonging to a trip owned by the user."""
 
     permission_classes = [
         IsAuthenticated,
@@ -41,9 +37,13 @@ class TripRecommendationsView(APIView):
             user=request.user,
         )
 
-        recommendations = get_trip_recommendations(
-            trip,
-        )
+        recommendations = get_trip_recommendations(trip)
+        status_filter = request.query_params.get("status")
+
+        if status_filter:
+            recommendations = recommendations.filter(
+                status=status_filter,
+            )
 
         serializer = RecommendationSerializer(
             recommendations,
@@ -57,9 +57,7 @@ class TripRecommendationsView(APIView):
 
 
 class RecommendationAcceptView(APIView):
-    """
-    Accept a recommendation.
-    """
+    """Accept a recommendation owned by the authenticated user."""
 
     permission_classes = [
         IsAuthenticated,
@@ -71,20 +69,13 @@ class RecommendationAcceptView(APIView):
         recommendation_id,
     ):
         recommendation = get_object_or_404(
-            Recommendation.objects.select_related(
-                "trip",
-            ),
+            Recommendation.objects.select_related("trip"),
             id=recommendation_id,
             trip__user=request.user,
         )
 
-        recommendation = accept_recommendation(
-            recommendation,
-        )
-
-        serializer = RecommendationSerializer(
-            recommendation,
-        )
+        recommendation = accept_recommendation(recommendation)
+        serializer = RecommendationSerializer(recommendation)
 
         return Response(
             serializer.data,
@@ -93,9 +84,7 @@ class RecommendationAcceptView(APIView):
 
 
 class RecommendationRejectView(APIView):
-    """
-    Reject a recommendation.
-    """
+    """Reject a recommendation owned by the authenticated user."""
 
     permission_classes = [
         IsAuthenticated,
@@ -107,20 +96,13 @@ class RecommendationRejectView(APIView):
         recommendation_id,
     ):
         recommendation = get_object_or_404(
-            Recommendation.objects.select_related(
-                "trip",
-            ),
+            Recommendation.objects.select_related("trip"),
             id=recommendation_id,
             trip__user=request.user,
         )
 
-        recommendation = reject_recommendation(
-            recommendation,
-        )
-
-        serializer = RecommendationSerializer(
-            recommendation,
-        )
+        recommendation = reject_recommendation(recommendation)
+        serializer = RecommendationSerializer(recommendation)
 
         return Response(
             serializer.data,
