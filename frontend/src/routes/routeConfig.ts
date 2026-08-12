@@ -11,5 +11,7 @@ export const routes = {
     profile: "/profile",
     saved: "/workspace/saved",
     settings: "/workspace/settings",
+    createTrip: "/trips/new",
+    tripDetail: "/trips/:tripId",
   },
 } as const;
