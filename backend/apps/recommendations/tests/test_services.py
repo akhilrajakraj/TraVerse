@@ -1,6 +1,4 @@
-"""
-Service tests for the Recommendations application.
-"""
+"""Service tests for the Recommendations application."""
 
 from datetime import date
 from decimal import Decimal
@@ -15,6 +13,7 @@ from apps.recommendations.models import (
     RecommendationStatus,
 )
 from apps.recommendations.services import (
+    InvalidRecommendationTransition,
     accept_recommendation,
     reject_recommendation,
 )
@@ -24,9 +23,7 @@ User = get_user_model()
 
 
 class RecommendationServiceTests(TestCase):
-    """
-    Validate recommendation services.
-    """
+    """Validate the recommendation decision state machine."""
 
     def setUp(self):
         self.user = User.objects.create_user(
@@ -62,15 +59,7 @@ class RecommendationServiceTests(TestCase):
     def test_accept_recommendation(self):
         recommendation = self.create_recommendation()
 
-        self.assertEqual(
-            recommendation.status,
-            RecommendationStatus.PENDING,
-        )
-
-        updated = accept_recommendation(
-            recommendation,
-        )
-
+        updated = accept_recommendation(recommendation)
         updated.refresh_from_db()
 
         self.assertEqual(
@@ -81,10 +70,7 @@ class RecommendationServiceTests(TestCase):
     def test_reject_recommendation(self):
         recommendation = self.create_recommendation()
 
-        updated = reject_recommendation(
-            recommendation,
-        )
-
+        updated = reject_recommendation(recommendation)
         updated.refresh_from_db()
 
         self.assertEqual(
@@ -92,26 +78,34 @@ class RecommendationServiceTests(TestCase):
             RecommendationStatus.REJECTED,
         )
 
-    def test_accept_returns_same_instance(self):
+    def test_accept_after_accepted_is_rejected(self):
         recommendation = self.create_recommendation()
 
-        updated = accept_recommendation(
-            recommendation,
-        )
+        accept_recommendation(recommendation)
 
-        self.assertEqual(
-            updated.pk,
-            recommendation.pk,
-        )
+        with self.assertRaises(InvalidRecommendationTransition):
+            accept_recommendation(recommendation)
 
-    def test_reject_returns_same_instance(self):
+    def test_reject_after_rejected_is_rejected(self):
         recommendation = self.create_recommendation()
 
-        updated = reject_recommendation(
-            recommendation,
-        )
+        reject_recommendation(recommendation)
 
-        self.assertEqual(
-            updated.pk,
-            recommendation.pk,
-        )
+        with self.assertRaises(InvalidRecommendationTransition):
+            reject_recommendation(recommendation)
+
+    def test_reject_after_accept_is_rejected(self):
+        recommendation = self.create_recommendation()
+
+        accept_recommendation(recommendation)
+
+        with self.assertRaises(InvalidRecommendationTransition):
+            reject_recommendation(recommendation)
+
+    def test_accept_after_reject_is_rejected(self):
+        recommendation = self.create_recommendation()
+
+        reject_recommendation(recommendation)
+
+        with self.assertRaises(InvalidRecommendationTransition):
+            accept_recommendation(recommendation)
