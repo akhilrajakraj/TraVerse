@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 
+import { ApiRequestError } from "../../../lib/apiClient";
 import { fetchTripPlanStatus, type AgentRunStatusResponse } from "../api/aiPlannerApi";
 
 export const tripPlanStatusQueryKey = (tripId: string) =>
@@ -13,16 +14,16 @@ const terminalStatuses = new Set<AgentRunStatusResponse["status"]>([
 
 export function useTripPlanStatus(
   tripId: string,
-  options: { pollAfterTrigger?: boolean } = {},
+  options: { pollUntil?: number | null } = {},
 ) {
-  const { pollAfterTrigger = false } = options;
+  const { pollUntil = null } = options;
 
   return useQuery({
     queryKey: tripPlanStatusQueryKey(tripId),
     queryFn: () => fetchTripPlanStatus(tripId),
     enabled: Boolean(tripId),
     retry: (failureCount, error) => {
-      if (error instanceof Error && "status" in error && error.status === 404) {
+      if (error instanceof ApiRequestError && error.status === 404) {
         return false;
       }
       return failureCount < 2;
@@ -38,10 +39,7 @@ export function useTripPlanStatus(
         return 2000;
       }
 
-      // A 202 trigger queues Celery work before the AgentRun is created.
-      // While the trigger is active, give that asynchronous boundary a short
-      // polling window without creating a separate client-side run state.
-      if (pollAfterTrigger && !query.state.error) {
+      if (pollUntil !== null && Date.now() < pollUntil) {
         return 2000;
       }
 
