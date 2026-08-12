@@ -1,54 +1,82 @@
 """
 Business services for the Recommendations application.
+
+Recommendation decisions are intentionally modeled as a small state machine:
+pending -> accepted/rejected, with accepted and rejected both terminal.
 """
 
 from decimal import Decimal
 
+from apps.destinations.models import Destination
 from apps.recommendations.models import (
     Recommendation,
-    RecommendationStatus,
     RecommendationCategory,
+    RecommendationStatus,
 )
-
-from apps.destinations.models import Destination
-
 from apps.trips.models import Trip
+from apps.core.exceptions import BusinessRuleViolation
+
+
+class InvalidRecommendationTransition(BusinessRuleViolation):
+    """Raised when a recommendation cannot move to the requested state."""
+
+    default_message = (
+        "This recommendation has already been decided and cannot be changed."
+    )
+    default_code = "invalid_recommendation_transition"
+
+
+_ALLOWED_TRANSITIONS: dict[str, set[str]] = {
+    RecommendationStatus.PENDING: {
+        RecommendationStatus.ACCEPTED,
+        RecommendationStatus.REJECTED,
+    },
+    RecommendationStatus.ACCEPTED: set(),
+    RecommendationStatus.REJECTED: set(),
+}
+
+
+def _transition(
+    recommendation: Recommendation,
+    new_status: str,
+) -> Recommendation:
+    allowed = _ALLOWED_TRANSITIONS.get(recommendation.status, set())
+
+    if new_status not in allowed:
+        raise InvalidRecommendationTransition()
+
+    recommendation.status = new_status
+    recommendation.save(
+        update_fields=[
+            "status",
+            "updated_at",
+        ],
+    )
+
+    return recommendation
 
 
 def accept_recommendation(
     recommendation: Recommendation,
 ) -> Recommendation:
-    """
-    Mark a recommendation as accepted.
-    """
+    """Mark a pending recommendation as accepted."""
 
-    recommendation.status = RecommendationStatus.ACCEPTED
-
-    recommendation.save(
-        update_fields=[
-            "status",
-        ],
+    return _transition(
+        recommendation,
+        RecommendationStatus.ACCEPTED,
     )
-
-    return recommendation
 
 
 def reject_recommendation(
     recommendation: Recommendation,
 ) -> Recommendation:
-    """
-    Mark a recommendation as rejected.
-    """
+    """Mark a pending recommendation as rejected."""
 
-    recommendation.status = RecommendationStatus.REJECTED
-
-    recommendation.save(
-        update_fields=[
-            "status",
-        ],
+    return _transition(
+        recommendation,
+        RecommendationStatus.REJECTED,
     )
 
-    return recommendation
 
 def create_recommendation(
     *,
@@ -62,11 +90,9 @@ def create_recommendation(
     """
     Create a new recommendation.
 
-    This is the single write entry point used by both AI-generated and
-    manually created recommendations.
-
-    Business ownership of Recommendation creation remains inside the
-    Recommendations application.
+    This remains the application-owned write entry point for future AI
+    agents and any future trusted/manual producer. Users do not create
+    recommendation rows directly through the current API.
     """
 
     return Recommendation.objects.create(
@@ -88,13 +114,8 @@ def clear_pending_ai_recommendations(
     Remove only pending AI-generated recommendations.
 
     Accepted recommendations represent explicit user decisions and must
-    never be removed automatically.
-
-    Rejected recommendations are preserved as user feedback and may be
-    valuable for future recommendation strategies.
-
-    Returns:
-        Number of deleted recommendations.
+    never be removed automatically. Rejected recommendations are retained
+    as feedback for future recommendation strategies.
     """
 
     deleted_count, _ = Recommendation.objects.filter(
