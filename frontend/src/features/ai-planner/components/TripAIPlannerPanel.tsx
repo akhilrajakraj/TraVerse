@@ -63,7 +63,9 @@ export function TripAIPlannerPanel({ tripId }: TripAIPlannerPanelProps) {
 
   function handleTrigger() {
     setPollUntil(Date.now() + POLL_BRIDGE_MS);
-    trigger.mutate(tripId);
+    trigger.mutate(tripId, {
+      onError: () => setPollUntil(null),
+    });
   }
 
   const showInitialStatusError = statusQuery.isError && !notStarted && pollUntil === null;
