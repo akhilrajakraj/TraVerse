@@ -14,11 +14,28 @@ export interface Destination {
   updated_at: string;
 }
 
+type DestinationApiResponse = Destination[] | PaginatedResponse<Destination>;
+
 /**
- * The backend destination endpoint exposes the active catalog. Search is
- * intentionally kept client-side so the frontend does not change the
- * established backend API contract.
+ * The backend destination endpoint currently returns the active catalog as a
+ * plain JSON array. Normalize that response at the API boundary so the rest of
+ * the feature can keep using the shared paginated list shape.
+ *
+ * Supporting the paginated envelope as well keeps this frontend compatible if
+ * the backend endpoint adopts pagination later without changing the page or
+ * search hook.
  */
-export function getDestinations(): Promise<PaginatedResponse<Destination>> {
-  return apiRequest<PaginatedResponse<Destination>>("/api/destinations/");
+export async function getDestinations(): Promise<PaginatedResponse<Destination>> {
+  const response = await apiRequest<DestinationApiResponse>("/api/destinations/");
+
+  if (Array.isArray(response)) {
+    return {
+      count: response.length,
+      next: null,
+      previous: null,
+      results: response,
+    };
+  }
+
+  return response;
 }
