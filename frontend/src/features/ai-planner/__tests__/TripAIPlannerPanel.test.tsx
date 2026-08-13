@@ -1,0 +1,123 @@
+import { fireEvent, render, screen } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import { ApiRequestError } from "../../../lib/apiClient";
+import { TripAIPlannerPanel } from "../components/TripAIPlannerPanel";
+
+const mutate = vi.fn();
+const invalidateQueries = vi.fn(() => Promise.resolve());
+
+let statusState: {
+  data: {
+    id: string;
+    agent_type: string;
+    status: "pending" | "running" | "succeeded" | "failed" | "needs_review";
+    error_message: string;
+    started_at: string | null;
+    completed_at: string | null;
+  } | undefined;
+  isLoading: boolean;
+  isError: boolean;
+  error: Error | null;
+  refetch: ReturnType<typeof vi.fn>;
+};
+
+let triggerState: {
+  isPending: boolean;
+  isSuccess: boolean;
+  isError: boolean;
+  error: Error | null;
+};
+
+vi.mock("@tanstack/react-query", () => ({
+  useQueryClient: () => ({ invalidateQueries }),
+}));
+
+vi.mock("../hooks/useTripPlanStatus", () => ({
+  useTripPlanStatus: () => statusState,
+}));
+
+vi.mock("../hooks/useTriggerTripPlan", () => ({
+  useTriggerTripPlan: () => ({ ...triggerState, mutate }),
+}));
+
+describe("TripAIPlannerPanel", () => {
+  beforeEach(() => {
+    mutate.mockClear();
+    invalidateQueries.mockClear();
+    statusState = {
+      data: undefined,
+      isLoading: false,
+      isError: true,
+      error: new ApiRequestError(404, "not_found", "No AI planning has been started for this trip."),
+      refetch: vi.fn(),
+    };
+    triggerState = {
+      isPending: false,
+      isSuccess: false,
+      isError: false,
+      error: null,
+    };
+  });
+
+  it("renders the planner trigger when no AgentRun exists", () => {
+    render(<TripAIPlannerPanel tripId="trip-1" />);
+
+    expect(screen.getByRole("heading", { name: "Generate a trip plan" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Generate AI trip plan" })).toBeEnabled();
+  });
+
+  it("queues planning for the current trip", () => {
+    render(<TripAIPlannerPanel tripId="trip-1" />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Generate AI trip plan" }));
+
+    expect(mutate).toHaveBeenCalledWith(
+      "trip-1",
+      expect.objectContaining({ onError: expect.any(Function) }),
+    );
+  });
+
+  it("renders an active backend-controlled AgentRun status", () => {
+    statusState = {
+      ...statusState,
+      data: {
+        id: "run-1",
+        agent_type: "travel_planner",
+        status: "running",
+        error_message: "",
+        started_at: "2026-09-01T10:00:00Z",
+        completed_at: null,
+      },
+      isError: false,
+      error: null,
+    };
+
+    render(<TripAIPlannerPanel tripId="trip-1" />);
+
+    expect(screen.getByText("running")).toBeInTheDocument();
+    expect(screen.getByText(/planning workflow is running asynchronously/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Generate AI trip plan" })).toBeDisabled();
+  });
+
+  it("refreshes authoritative trip data after a successful planning run", () => {
+    statusState = {
+      ...statusState,
+      data: {
+        id: "run-1",
+        agent_type: "travel_planner",
+        status: "succeeded",
+        error_message: "",
+        started_at: "2026-09-01T10:00:00Z",
+        completed_at: "2026-09-01T10:02:00Z",
+      },
+      isError: false,
+      error: null,
+    };
+
+    render(<TripAIPlannerPanel tripId="trip-1" />);
+
+    expect(screen.getByText("Your AI-generated trip data is ready.")).toBeInTheDocument();
+    expect(invalidateQueries).toHaveBeenCalledTimes(4);
+  });
+});
