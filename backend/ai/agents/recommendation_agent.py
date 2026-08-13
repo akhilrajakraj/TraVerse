@@ -1,82 +1,26 @@
-"""
-Recommendation AI Agent.
-
-This module contains the production Recommendation Agent used by
-TraVerse.
-
-Responsibilities
-----------------
-
-- Build prompts
-- Call the LLM provider
-- Validate structured output
-- Return an updated graph state
-
-This module intentionally does NOT:
-
-- Know about Django models
-- Save to the database
-- Call REST APIs
-- Execute Celery tasks
-- Depend on LangGraph
-"""
-
 from __future__ import annotations
 
 from ai.agents.schemas import RecommendationBatchSchema
 from ai.clients.groq_client import GroqClient
 from ai.graphs.state import PlanningGraphState
-from ai.parsers.structured_output import (
-    parse_structured_output,
-)
-from ai.prompts.recommendation_agent_v1 import (
-    RecommendationAgentPromptV1,
-    recommendation_agent_prompt_v1,
-)
+from ai.parsers.structured_output import parse_structured_output
+from ai.prompts.recommendation_agent_v1 import RecommendationAgentPromptV1, recommendation_agent_prompt_v1
 
 
 class RecommendationAgent:
-    """
-    Enterprise AI Recommendation Agent.
-
-    Coordinates prompt generation,
-    LLM execution,
-    and structured response validation.
-    """
-
-    def __init__(
-        self,
-        *,
-        client: GroqClient | None = None,
-        prompt: RecommendationAgentPromptV1 | None = None,
-    ) -> None:
+    def __init__(self, *, client: GroqClient | None = None, prompt: RecommendationAgentPromptV1 | None = None) -> None:
         self._client = client or GroqClient()
         self._prompt = prompt or recommendation_agent_prompt_v1
 
-    def _repair_callback(
-        self,
-        repair_prompt: str,
-    ) -> str:
-        """
-        Ask the LLM to repair an invalid JSON response.
-        """
-
+    def _repair_callback(self, repair_prompt: str) -> str:
         return self._client.call(
             system_prompt=self._prompt.SYSTEM_PROMPT,
             user_prompt=repair_prompt,
             temperature=0.0,
+            json_mode=True,
         )
 
-    def generate_recommendations(
-        self,
-        state: PlanningGraphState,
-    ) -> PlanningGraphState:
-        """
-        Execute the Recommendation Agent.
-
-        Returns a new immutable graph state.
-        """
-
+    def generate_recommendations(self, state: PlanningGraphState) -> PlanningGraphState:
         user_prompt = self._prompt.render_user_prompt(
             trip_title=state["trip_title"],
             destination_names=state["destination_names"],
@@ -90,6 +34,7 @@ class RecommendationAgent:
             system_prompt=self._prompt.SYSTEM_PROMPT,
             user_prompt=user_prompt,
             temperature=0.3,
+            json_mode=True,
         )
 
         recommendations = parse_structured_output(
@@ -98,10 +43,7 @@ class RecommendationAgent:
             repair_callback=self._repair_callback,
         )
 
-        return {
-            **state,
-            "recommendations": recommendations,
-        }
+        return {**state, "recommendations": recommendations}
 
 
 recommendation_agent = RecommendationAgent()
