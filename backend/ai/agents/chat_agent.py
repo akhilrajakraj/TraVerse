@@ -46,6 +46,7 @@ class ChatAgent:
             system_prompt=self._prompt.system_prompt,
             user_prompt=user_prompt,
             temperature=0.3,
+            json_mode=False,
         )
 
         return response.strip()
