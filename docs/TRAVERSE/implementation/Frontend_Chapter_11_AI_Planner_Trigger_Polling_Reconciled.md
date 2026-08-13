@@ -1,4 +1,4 @@
-# Frontend Chapter 11 — AI Planner Trigger & Polling Reconciliation
+# Frontend Chapter 11 — AI Planner Trigger, Polling & Structured-Output Reconciliation
 
 ## Original chapter intent
 
@@ -6,67 +6,56 @@ Implement the frontend entry point for asynchronous AI trip planning and represe
 
 ## Repository audit
 
-The current frontend uses React 19, TypeScript, TanStack Query, Vitest, React Testing Library, and the shared `apiRequest()` gateway. Feature code follows `api/`, `hooks/`, `components/`, and `__tests__/` boundaries.
+The frontend uses React 19, TypeScript, TanStack Query, Vitest, React Testing Library, and the shared `apiRequest()` gateway. Feature code follows `api/`, `hooks/`, `components/`, and `__tests__/` boundaries.
 
-Chapter 10 is already integrated into `main`, and `TripDetailPage` is the established trip sub-domain surface. The existing trip detail page already renders itinerary, budget, and recommendation panels.
+Chapter 10 is already integrated into `main`, and `TripDetailPage` is the established trip sub-domain surface.
 
 ## Backend contract verified
 
-The current Django configuration mounts the AI Agents application at `/api/ai_agents/`. The actual routes are:
+The actual routes are:
 
 - `POST /api/ai_agents/trips/<uuid:trip_id>/plan/`
 - `GET /api/ai_agents/trips/<uuid:trip_id>/plan/status/`
 
-Both endpoints require authentication and the backend resolves the trip against the authenticated user.
-
-The trigger returns HTTP 202 with:
-
-- `message`
-- `task_id`
-- `trip_id`
-
-The status endpoint returns HTTP 404 when no planning run exists. Once a run exists, it returns the read-only `AgentRunStatusSerializer` fields:
-
-- `id`
-- `agent_type`
-- `status`
-- `error_message`
-- `started_at`
-- `completed_at`
+The trigger returns HTTP 202 with `message`, `task_id`, and `trip_id`. The status endpoint returns HTTP 404 when no planning run exists and otherwise exposes `id`, `agent_type`, `status`, `error_message`, `started_at`, and `completed_at`.
 
 The backend lifecycle states are `pending`, `running`, `succeeded`, `failed`, and `needs_review`.
 
-The backend also rate-limits planning triggers to five requests per hour and can return HTTP 429. The frontend therefore relies on the shared API client's existing 429 handling instead of implementing a second rate-limit system.
+## Reported failure and reconciliation
 
-## Reconciliation decisions
+After Chapter 11 was pulled into a real environment, the UI correctly surfaced `needs_review` with:
 
-### No backend changes
+`Unterminated string starting at: line 308 column 23 ... Repair error: Expecting property name enclosed in double quotes ...`
 
-The backend already provides the exact trigger and status endpoints required by this frontend chapter. No backend modification is necessary or justified.
+This error originates inside the AI workflow, not inside React. The frontend receives the persisted `AgentRun.error_message`; it cannot repair an LLM response that has already failed server-side JSON parsing.
 
-### No arbitrary polling loop
+The audit found two reliability gaps upstream:
 
-Polling is implemented through TanStack Query's `refetchInterval`, but only while the backend status is non-terminal. Terminal statuses stop polling. A missing run (404) is treated as the initial not-started state rather than as an application error.
+1. The Groq client requested ordinary text completion even when agents expected structured JSON. The planner prompt said JSON, but the provider was not instructed through `response_format` to enforce JSON syntax.
+2. The generic repair prompt included the malformed response but not the exact Pydantic schema, so the repair model had weaker structural guidance.
 
-After a successful trigger, the frontend temporarily continues polling even if the worker has not created its `AgentRun` yet. This accounts for the real asynchronous boundary between HTTP 202 queueing and worker-side `AgentRun` creation without inventing a client-side run identifier.
+The minimal backend correction is therefore limited to the AI infrastructure boundary:
 
-### No client-side AgentRun state machine
+- structured calls can enable Groq JSON Object Mode;
+- tool-selection calls remain ordinary tool calls, while their final response can use JSON mode;
+- structured agents explicitly request JSON mode;
+- repair prompts include the exact Pydantic JSON schema.
 
-The backend owns lifecycle state. The frontend displays the authoritative status and only uses the known terminal-state set to decide whether polling should continue.
+No Django view, URL, model, Celery task, persistence workflow, authentication flow, or database behavior is changed.
 
-### Chapter 12 boundary
+Groq documents that `llama-3.1-8b-instant` supports JSON Object Mode, and its API accepts `response_format: {"type": "json_object"}` for valid JSON generation. Groq also documents stricter JSON Schema Structured Outputs for a limited model set; the current TraVerse default model is therefore kept and JSON Object Mode is used as the compatible minimal fix.
 
-This chapter provides the trigger and basic polling/progress representation required to make asynchronous planning usable. It does not attempt to implement the more detailed Agent Run status/live-progress experience assigned to Chapter 12.
+## Frontend recovery hardening
 
-### Existing architecture preserved
+The frontend remains responsible for the user experience:
 
-The feature uses:
-
-`TripDetailPage → feature hook → feature API → apiRequest → backend`
-
-No direct `fetch()`, Axios, new dependency, new route, or authentication implementation is introduced.
-
-On successful completion, the existing trip, itinerary, budget, and recommendations query keys are invalidated so the current trip-detail panels can display authoritative AI-generated data. No new cache abstraction is introduced.
+- `needs_review` is presented as a recoverable AI-output problem;
+- the raw parser diagnostic is moved behind a technical-details disclosure;
+- the UI explicitly says that the failed run is not treated as a completed plan;
+- the terminal state exposes `Retry AI planner`;
+- active runs continue backend-controlled polling;
+- successful runs invalidate the existing trip, itinerary, budget, and recommendation caches;
+- no client-side AgentRun state machine or AI generation logic is introduced.
 
 ## Implementation shape
 
@@ -84,17 +73,18 @@ frontend/src/features/ai-planner/
     └── TripAIPlannerPanel.test.tsx
 ```
 
-The panel is mounted on the existing trip detail page immediately before the itinerary/budget/recommendation sub-domain panels so the user can start planning from the trip context without inventing a new route.
-
 ## Safety boundary
 
-- Backend files changed: **No**
+- Frontend changes: **Yes — recovery UX and regression coverage**
+- Backend changes: **Yes — only the shared AI client/parser and structured-agent call flags because the root defect is server-side**
+- Django API/view changes: **No**
+- Database/model changes: **No**
+- Celery/task changes: **No**
 - New dependencies: **No**
 - New routes: **No**
 - Authentication changes: **No**
-- AI generation logic: **No**
-- Arbitrary retry loop: **No**
+- Arbitrary infinite polling: **No**
 
 ## Verification limitation
 
-Repository changes are published through GitHub. The execution environment available to this implementation cannot reach `github.com` from a local shell, so local `npm run test` and `npm run build` cannot be honestly claimed as locally executed. GitHub Actions is the authoritative CI verification for the published commit/PR.
+The repository changes are published through GitHub. Local `npm run test`, `npm run build`, and backend pytest execution have not been claimed because the available shell cannot reach GitHub/network services. CI is the authoritative verification path.
