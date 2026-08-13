@@ -56,9 +56,13 @@ describe("TripAIPlannerPanel", () => {
     };
     render(<TripAIPlannerPanel tripId="trip-1" />);
     expect(screen.getByText("The AI planner needs another attempt")).toBeInTheDocument();
-    expect(screen.getByText(/invalid structured data/i)).toBeInTheDocument();
+    expect(screen.getByText(
+      /server did not accept the generated result as a completed plan/i,
+    )).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Retry AI planner" })).toBeEnabled();
-    expect(screen.getByText(/No new AI-generated plan is considered complete/i)).toBeInTheDocument();
+    expect(screen.getByText(
+      /This run is not treated as a completed AI plan/i
+    )).toBeInTheDocument();
   });
 
   it("refreshes authoritative trip data after a successful planning run", () => {
