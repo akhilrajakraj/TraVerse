@@ -25,20 +25,11 @@ from ai.agents.schemas import ItineraryPlanSchema
 from ai.clients.groq_client import GroqClient
 from ai.graphs.state import PlanningGraphState
 from ai.parsers.structured_output import parse_structured_output
-from ai.prompts.planner_v1 import (
-    TravelPlannerPromptV1,
-    travel_planner_prompt_v1,
-)
+from ai.prompts.planner_v1 import TravelPlannerPromptV1, travel_planner_prompt_v1
 
 
 class TravelPlannerAgent:
-    """
-    Enterprise AI Travel Planner.
-
-    Coordinates prompt generation,
-    LLM execution,
-    and structured response validation.
-    """
+    """Enterprise AI Travel Planner."""
 
     def __init__(
         self,
@@ -49,30 +40,17 @@ class TravelPlannerAgent:
         self._client = client or GroqClient()
         self._prompt = prompt or travel_planner_prompt_v1
 
-    def _repair_callback(
-        self,
-        repair_prompt: str,
-    ) -> str:
-        """
-        Ask the LLM to repair an invalid JSON response.
-        """
-
+    def _repair_callback(self, repair_prompt: str) -> str:
+        """Ask the LLM to repair invalid JSON using provider JSON mode."""
         return self._client.call(
             system_prompt=self._prompt.system_prompt,
             user_prompt=repair_prompt,
             temperature=0.0,
+            json_mode=True,
         )
 
-    def plan(
-        self,
-        state: PlanningGraphState,
-    ) -> PlanningGraphState:
-        """
-        Execute the Travel Planner agent.
-
-        Returns a new immutable graph state.
-        """
-
+    def plan(self, state: PlanningGraphState) -> PlanningGraphState:
+        """Execute the Travel Planner agent."""
         user_prompt = self._prompt.render_user_prompt(
             trip_title=state["trip_title"],
             destination_names=state["destination_names"],
@@ -86,6 +64,7 @@ class TravelPlannerAgent:
             system_prompt=self._prompt.system_prompt,
             user_prompt=user_prompt,
             temperature=0.3,
+            json_mode=True,
         )
 
         itinerary = parse_structured_output(
@@ -94,10 +73,7 @@ class TravelPlannerAgent:
             repair_callback=self._repair_callback,
         )
 
-        return {
-            **state,
-            "itinerary": itinerary,
-        }
+        return {**state, "itinerary": itinerary}
 
 
 travel_planner_agent = TravelPlannerAgent()
