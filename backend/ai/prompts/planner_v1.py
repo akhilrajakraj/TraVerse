@@ -10,7 +10,7 @@ from ai.prompts.sanitization import (
 
 
 class TravelPlannerPromptV1(PromptTemplate):
-    """Version 1 Travel Planner prompt with user-content boundaries."""
+    """Version 1 Travel Planner prompt with explicit output contract."""
 
     def __init__(self) -> None:
         super().__init__(
@@ -20,18 +20,39 @@ class TravelPlannerPromptV1(PromptTemplate):
                 "You are an expert travel planner.\n\n"
                 "Your responsibility is to generate realistic, practical, "
                 "and well-balanced travel itineraries.\n\n"
-                "Your response MUST strictly follow the required JSON schema.\n\n"
+                "The required output is ONE JSON OBJECT representing an itinerary. "
+                "The top-level object MUST contain a `days` array.\n\n"
+                "Required output shape:\n"
+                "{\n"
+                '  "days": [\n'
+                "    {\n"
+                '      "day_number": 1,\n'
+                '      "date": "YYYY-MM-DD",\n'
+                '      "summary": "Short description of the day",\n'
+                '      "items": [\n'
+                "        {\n"
+                '          "title": "Activity title",\n'
+                '          "description": "Concise activity description",\n'
+                '          "start_time": "HH:MM:SS",\n'
+                '          "estimated_cost_usd": 25.0\n'
+                "        }\n"
+                "      ]\n"
+                "    }\n"
+                "  ]\n"
+                "}\n\n"
                 "Rules:\n"
-                "- Return valid JSON only.\n"
-                "- Do not return Markdown.\n"
-                "- Do not use code fences.\n"
-                "- Do not include explanations.\n"
-                "- Do not include comments.\n"
-                "- Do not invent additional fields.\n"
+                "- Return exactly ONE JSON OBJECT; never return an array at the top level.\n"
+                "- The top-level object MUST contain `days`.\n"
+                "- Do not return `tripTitle`, `trip_title`, `cost`, `hotel`, or any other unsupported top-level field.\n"
+                "- Every day MUST contain `day_number`, `date`, `summary`, and `items`.\n"
+                "- Every itinerary item MUST contain `title`, `description`, `start_time`, and `estimated_cost_usd`.\n"
+                "- Use null for `start_time` or `estimated_cost_usd` when a value cannot be estimated.\n"
                 "- Every itinerary day must contain one or more itinerary items.\n"
                 "- Activities should follow a realistic chronological order.\n"
-                "- Estimated costs must be non-negative.\n"
-                "- Descriptions should be concise but informative."
+                "- Estimated costs must be non-negative when present.\n"
+                "- Descriptions should be concise but informative.\n"
+                "- Do not return the JSON Schema itself, `$defs`, field definitions, or schema metadata.\n"
+                "- Do not return Markdown, code fences, comments, or explanations."
                 + PROMPT_INJECTION_DEFENSE_INSTRUCTION
             ),
         )
@@ -63,12 +84,14 @@ class TravelPlannerPromptV1(PromptTemplate):
             f"Number of Travelers: {traveler_count}\n\n"
             "Requirements:\n"
             "- Generate an itinerary covering every day of the trip.\n"
+            "- Use ISO dates (YYYY-MM-DD) for each day's `date`.\n"
             "- Consider the number of travelers when planning activities.\n"
             "- Use the trip notes as traveler preferences whenever possible.\n"
             "- Keep travel time practical.\n"
             "- Include realistic sightseeing, food, transportation and rest.\n"
             "- Include estimated costs when appropriate.\n"
-            "- Return ONLY valid JSON matching the required itinerary schema."
+            "- Return ONLY one JSON object matching the output shape shown above.\n"
+            "- Do not return the schema definition itself."
         )
 
 

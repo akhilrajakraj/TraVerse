@@ -27,7 +27,7 @@ def test_invalid_json_is_repaired():
     assert result.message == "fixed"
 
 
-def test_repair_prompt_contains_exact_schema():
+def test_repair_prompt_contains_exact_schema_and_instance_instructions():
     prompts: list[str] = []
     result = parse_structured_output(
         raw_text='{"message":"unterminated}',
@@ -36,8 +36,21 @@ def test_repair_prompt_contains_exact_schema():
     )
     assert result.message == "fixed"
     assert '"message"' in prompts[0]
-    assert "REQUIRED JSON SCHEMA" in prompts[0]
-    assert "ORIGINAL RESPONSE" in prompts[0]
+    assert "REQUIRED JSON SCHEMA DEFINITION" in prompts[0].upper()
+    assert "ORIGINAL MODEL RESPONSE" in prompts[0].upper()
+    assert "DO NOT RETURN THIS SCHEMA" in prompts[0].upper()
+    assert "ONE JSON OBJECT" in prompts[0].upper()
+
+
+def test_schema_document_is_not_accepted_as_a_repaired_instance():
+    schema_document = DemoSchema.model_json_schema()
+
+    with pytest.raises(StructuredOutputInvalid):
+        parse_structured_output(
+            raw_text='{"unexpected":"shape"}',
+            schema=DemoSchema,
+            repair_callback=lambda _: __import__("json").dumps(schema_document),
+        )
 
 
 def test_invalid_after_repair_raises():

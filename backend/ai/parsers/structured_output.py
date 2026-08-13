@@ -36,7 +36,6 @@ def _clean_response(text: str) -> str:
 
     if text.startswith("```json"):
         text = text[7:]
-
     elif text.startswith("```"):
         text = text[3:]
 
@@ -56,67 +55,55 @@ def parse_structured_output(
     Parse a structured LLM response into a validated Pydantic model.
 
     A single repair attempt is made if the initial parsing or validation
-    fails.
+    fails. The repair request explicitly distinguishes the JSON schema
+    definition from a JSON instance so the model cannot reasonably return
+    the schema document itself as the repaired payload.
     """
 
     try:
         cleaned = _clean_response(raw_text)
-
         data = json.loads(cleaned)
-
         return schema.model_validate(data)
 
-    except (
-        json.JSONDecodeError,
-        ValidationError,
-    ) as first_error:
-
+    except (json.JSONDecodeError, ValidationError) as first_error:
         logger.warning(
-            "Structured output validation failed. "
-            "Attempting automatic repair."
+            "Structured output validation failed. Attempting automatic repair."
         )
 
-        schema_json = json.dumps(
-            schema.model_json_schema(),
-            indent=2,
-        )
+        schema_json = json.dumps(schema.model_json_schema(), indent=2)
         repair_prompt = (
-            "Return ONLY valid JSON that satisfies the exact required schema.\n\n"
-            "Required JSON schema:\n"
+            "You are repairing a previously generated JSON INSTANCE.\n\n"
+            "IMPORTANT: The schema below is a DEFINITION of the required shape. "
+            "It is NOT the answer. Do NOT return this schema, `$defs`, field "
+            "definitions, property metadata, or a list containing the schema.\n\n"
+            "Return exactly ONE JSON OBJECT that is an INSTANCE conforming to "
+            "the schema. The top-level object must contain the required fields "
+            "from the schema.\n\n"
+            "Required JSON schema definition:\n"
             f"{schema_json}\n\n"
-            "Original response:\n"
+            "Original model response:\n"
             f"{raw_text}\n\n"
-            "Repair truncated strings, missing quotes, commas, braces, or other "
-            "JSON syntax errors. Do not return Markdown, comments, explanations, "
-            "trailing commas, or additional fields."
+            "Repair instructions:\n"
+            "- Preserve valid information from the original response when it can "
+            "be mapped to the required fields.\n"
+            "- Repair malformed strings, quotes, commas, braces, or brackets.\n"
+            "- Add required fields that are missing.\n"
+            "- Remove unsupported fields.\n"
+            "- Do not invent a different top-level structure.\n"
+            "- Do not return the schema definition itself.\n"
+            "- Do not return Markdown, comments, explanations, or code fences.\n"
+            "- Return ONLY the final JSON INSTANCE."
         )
 
-        repaired_text = repair_callback(
-            repair_prompt,
-        )
+        repaired_text = repair_callback(repair_prompt)
 
         try:
-            repaired = _clean_response(
-                repaired_text,
-            )
+            repaired = _clean_response(repaired_text)
+            repaired_data = json.loads(repaired)
+            return schema.model_validate(repaired_data)
 
-            repaired_data = json.loads(
-                repaired,
-            )
-
-            return schema.model_validate(
-                repaired_data,
-            )
-
-        except (
-            json.JSONDecodeError,
-            ValidationError,
-        ) as second_error:
-
-            logger.error(
-                "Structured output repair failed."
-            )
-
+        except (json.JSONDecodeError, ValidationError) as second_error:
+            logger.error("Structured output repair failed.")
             raise StructuredOutputInvalid(
                 (
                     "Unable to produce valid structured output. "
