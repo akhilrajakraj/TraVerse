@@ -69,7 +69,6 @@ describe("TripAIPlannerPanel", () => {
 
   it("queues planning for the current trip", () => {
     render(<TripAIPlannerPanel tripId="trip-1" />);
-
     fireEvent.click(screen.getByRole("button", { name: "Generate AI trip plan" }));
 
     expect(mutate).toHaveBeenCalledWith(
@@ -100,6 +99,29 @@ describe("TripAIPlannerPanel", () => {
     expect(screen.getByRole("button", { name: "Generate AI trip plan" })).toBeDisabled();
   });
 
+  it("makes needs_review actionable without exposing the diagnostic as the primary message", () => {
+    statusState = {
+      ...statusState,
+      data: {
+        id: "run-1",
+        agent_type: "travel_planner",
+        status: "needs_review",
+        error_message: "Unable to produce valid structured output. Initial error: malformed JSON",
+        started_at: "2026-09-01T10:00:00Z",
+        completed_at: "2026-09-01T10:02:00Z",
+      },
+      isError: false,
+      error: null,
+    };
+
+    render(<TripAIPlannerPanel tripId="trip-1" />);
+
+    expect(screen.getByText("The AI planner needs another attempt")).toBeInTheDocument();
+    expect(screen.getByText(/invalid structured data/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Retry AI planner" })).toBeEnabled();
+    expect(screen.getByText(/No new AI-generated plan is considered complete/i)).toBeInTheDocument();
+  });
+
   it("refreshes authoritative trip data after a successful planning run", () => {
     statusState = {
       ...statusState,
@@ -117,7 +139,7 @@ describe("TripAIPlannerPanel", () => {
 
     render(<TripAIPlannerPanel tripId="trip-1" />);
 
-    expect(screen.getByText("Your AI-generated trip data is ready.")).toBeInTheDocument();
+    expect(screen.getByText("Your AI trip plan is ready")).toBeInTheDocument();
     expect(invalidateQueries).toHaveBeenCalledTimes(4);
   });
 });
