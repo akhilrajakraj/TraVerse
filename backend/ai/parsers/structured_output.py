@@ -76,9 +76,19 @@ def parse_structured_output(
             "Attempting automatic repair."
         )
 
+        schema_json = json.dumps(
+            schema.model_json_schema(),
+            indent=2,
+        )
         repair_prompt = (
-            "Return ONLY valid JSON that satisfies the required schema.\n\n"
-            f"Original response:\n{raw_text}"
+            "Return ONLY valid JSON that satisfies the exact required schema.\n\n"
+            "Required JSON schema:\n"
+            f"{schema_json}\n\n"
+            "Original response:\n"
+            f"{raw_text}\n\n"
+            "Repair truncated strings, missing quotes, commas, braces, or other "
+            "JSON syntax errors. Do not return Markdown, comments, explanations, "
+            "trailing commas, or additional fields."
         )
 
         repaired_text = repair_callback(

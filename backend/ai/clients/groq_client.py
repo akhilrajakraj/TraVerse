@@ -38,6 +38,7 @@ class GroqClient:
     - client construction
     - timeout handling
     - retry/backoff
+    - optional JSON response mode for structured output
 
     Does NOT own:
 
@@ -73,11 +74,9 @@ class GroqClient:
         messages: list[dict],
         temperature: float,
         tools: list[dict] | None = None,
+        json_mode: bool = False,
     ):
-        """
-        Shared low-level Groq request used by both plain calls and
-        tool-calling requests.
-        """
+        """Shared low-level Groq request used by plain and tool calls."""
 
         kwargs = {
             "model": self._config.model_name,
@@ -89,6 +88,9 @@ class GroqClient:
             kwargs["tools"] = tools
             kwargs["tool_choice"] = "auto"
 
+        if json_mode:
+            kwargs["response_format"] = {"type": "json_object"}
+
         return self._client.chat.completions.create(**kwargs)
 
     def call(
@@ -97,10 +99,9 @@ class GroqClient:
         system_prompt: str,
         user_prompt: str,
         temperature: float = 0.3,
+        json_mode: bool = True,
     ) -> str:
-        """
-        Public interface used by every future AI agent.
-        """
+        """Public interface used by the AI agents."""
 
         try:
             response = self._call_raw(
@@ -115,6 +116,7 @@ class GroqClient:
                 },
             ],
             temperature=temperature,
+            json_mode=json_mode,
             )
 
             return response.choices[0].message.content
@@ -137,10 +139,12 @@ class GroqClient:
         tools: list[dict],
         tool_executor: Callable[[str, dict], str],
         temperature: float = 0.2,
+        json_mode: bool = True,
     ) -> str:
         """
         Allow the LLM to execute one round of tool calls before producing
-        a final answer.
+        a final answer. The initial tool-selection request stays non-JSON;
+        the final response can use JSON Object Mode for structured output.
         """
 
         try:
@@ -159,6 +163,7 @@ class GroqClient:
                 messages=messages,
                 temperature=temperature,
                 tools=tools,
+                json_mode=False,
             )
 
             message = first_response.choices[0].message
@@ -197,6 +202,7 @@ class GroqClient:
             final_response = self._call_raw(
                 messages=messages,
                 temperature=temperature,
+                json_mode=json_mode,
             )
 
             return final_response.choices[0].message.content

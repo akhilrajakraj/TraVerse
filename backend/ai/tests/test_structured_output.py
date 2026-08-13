@@ -6,10 +6,6 @@ from ai.parsers.structured_output import parse_structured_output
 
 
 class DemoSchema(BaseModel):
-    """
-    Simple schema used by parser tests.
-    """
-
     message: str
 
 
@@ -19,7 +15,6 @@ def test_valid_json_is_parsed():
         schema=DemoSchema,
         repair_callback=lambda _: '{"message":"unused"}',
     )
-
     assert result.message == "hello"
 
 
@@ -29,14 +24,24 @@ def test_invalid_json_is_repaired():
         schema=DemoSchema,
         repair_callback=lambda _: '{"message":"fixed"}',
     )
-
     assert result.message == "fixed"
 
 
+def test_repair_prompt_contains_exact_schema():
+    prompts: list[str] = []
+    result = parse_structured_output(
+        raw_text='{"message":"unterminated}',
+        schema=DemoSchema,
+        repair_callback=lambda prompt: prompts.append(prompt) or '{"message":"fixed"}',
+    )
+    assert result.message == "fixed"
+    assert '"message"' in prompts[0]
+    assert "REQUIRED JSON SCHEMA" in prompts[0]
+    assert "ORIGINAL RESPONSE" in prompts[0]
+
+
 def test_invalid_after_repair_raises():
-    with pytest.raises(
-        StructuredOutputInvalid,
-    ):
+    with pytest.raises(StructuredOutputInvalid):
         parse_structured_output(
             raw_text="not json",
             schema=DemoSchema,
