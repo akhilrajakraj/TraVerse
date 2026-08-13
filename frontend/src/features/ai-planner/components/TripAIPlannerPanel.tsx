@@ -39,7 +39,6 @@ export function TripAIPlannerPanel({ tripId }: TripAIPlannerPanelProps) {
 
     const remaining = Math.max(0, pollUntil - Date.now());
     const timeout = window.setTimeout(() => setPollUntil(null), remaining);
-
     return () => window.clearTimeout(timeout);
   }, [pollUntil]);
 
@@ -68,11 +67,40 @@ export function TripAIPlannerPanel({ tripId }: TripAIPlannerPanelProps) {
     });
   }
 
-  const showInitialStatusError = statusQuery.isError && !notStarted && pollUntil === null;
-  const showQueuedStatus = trigger.isSuccess && !status && (notStarted || statusQuery.isError);
+  const showInitialStatusError =
+    statusQuery.isError && !notStarted && pollUntil === null;
+  const showQueuedStatus =
+    trigger.isSuccess && !status && (notStarted || statusQuery.isError);
+
+  const statusCopy = {
+    succeeded: {
+      title: "Your AI trip plan is ready",
+      description: "The planning workflow completed successfully.",
+    },
+    failed: {
+      title: "The AI planner could not complete the run",
+      description: "The server rejected the planning attempt. You can safely retry it.",
+    },
+    needs_review: {
+      title: "The AI planner needs another attempt",
+      description:
+        "The AI provider returned invalid structured data. This run was not treated as a completed plan. Retry the planner to generate a fresh result.",
+    },
+    pending: {
+      title: "Planning request accepted",
+      description: "The asynchronous planner is waiting to start.",
+    },
+    running: {
+      title: "AI planner is working",
+      description: "The planning workflow is running asynchronously.",
+    },
+  } as const;
 
   return (
-    <section className="mt-8 border-t border-[var(--line)] pt-6" aria-labelledby="ai-planner-heading">
+    <section
+      className="mt-8 border-t border-[var(--line)] pt-6"
+      aria-labelledby="ai-planner-heading"
+    >
       <div className="mb-5">
         <span className="section-kicker">AI Planner</span>
         <h2 id="ai-planner-heading" className="mt-1 text-xl font-semibold">
@@ -95,27 +123,47 @@ export function TripAIPlannerPanel({ tripId }: TripAIPlannerPanelProps) {
         />
       ) : null}
 
-      {statusQuery.isLoading && !status ? <Spinner label="Checking planner status..." /> : null}
+      {statusQuery.isLoading && !status ? (
+        <Spinner label="Checking planner status..." />
+      ) : null}
 
       {status ? (
         <Card>
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <p className="text-sm font-semibold">Travel planner run</p>
+              <p className="mt-1 text-base font-medium">
+                {statusCopy[status.status].title}
+              </p>
               <p className="mt-1 text-sm text-neutral">
-                {status.status === "succeeded"
-                  ? "Your AI-generated trip data is ready."
-                  : status.status === "failed"
-                    ? "The planning run failed. You can try again."
-                    : status.status === "needs_review"
-                      ? "The planning run needs review before its result can be treated as complete."
-                      : "The planning workflow is running asynchronously."}
+                {statusCopy[status.status].description}
               </p>
             </div>
             <StatusBadge status={status.status} colorMap={agentRunStatusColors} />
           </div>
 
-          {status.error_message ? (
+          {status.status === "needs_review" ? (
+            <div className="mt-4 rounded-lg border border-warning bg-warning-bg p-4">
+              <p className="text-sm font-medium text-warning">
+                No new AI-generated plan is considered complete from this run.
+              </p>
+              <p className="mt-1 text-sm text-neutral">
+                The parser failure happened inside the AI workflow before the result could be accepted. The retry button below starts a new server-side planning run.
+              </p>
+              {status.error_message ? (
+                <details className="mt-3 text-sm text-neutral">
+                  <summary className="cursor-pointer font-medium">
+                    Show technical diagnostic
+                  </summary>
+                  <pre className="mt-2 overflow-x-auto whitespace-pre-wrap rounded-md bg-[var(--surface-solid)] p-3 text-xs">
+                    {status.error_message}
+                  </pre>
+                </details>
+              ) : null}
+            </div>
+          ) : null}
+
+          {status.status === "failed" && status.error_message ? (
             <p className="mt-4 text-sm text-danger" role="alert">
               {status.error_message}
             </p>
@@ -164,13 +212,13 @@ export function TripAIPlannerPanel({ tripId }: TripAIPlannerPanelProps) {
           isLoading={trigger.isPending}
           disabled={trigger.isPending || Boolean(isActive) || Boolean(pollUntil)}
         >
-          {status?.status === "succeeded" || status?.status === "failed" || status?.status === "needs_review"
-            ? "Run AI planner again"
-            : "Generate AI trip plan"}
+          {isTerminal ? "Retry AI planner" : "Generate AI trip plan"}
         </Button>
 
         {pollUntil !== null ? (
-          <span className="text-sm text-neutral">Checking planner status automatically.</span>
+          <span className="text-sm text-neutral">
+            Checking planner status automatically.
+          </span>
         ) : null}
       </div>
     </section>
