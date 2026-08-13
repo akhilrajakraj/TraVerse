@@ -6,18 +6,12 @@ import { EmptyState } from "../../../components/ui/EmptyState";
 import { ErrorState } from "../../../components/ui/ErrorState";
 import { Input } from "../../../components/ui/Input";
 import { Spinner } from "../../../components/ui/Spinner";
+import { GeneratedItineraryReview } from "./GeneratedItineraryReview";
 import { useAddItineraryItem } from "../hooks/useAddItineraryItem";
 import { useTripItinerary } from "../hooks/useTripItinerary";
 
 interface TripItineraryPanelProps {
   tripId: string;
-}
-
-function formatCurrency(value: string | null) {
-  if (!value) return null;
-  const amount = Number(value);
-  if (Number.isNaN(amount)) return `$${value}`;
-  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(amount);
 }
 
 function normalizeOptional(value: string) {
@@ -56,6 +50,7 @@ export function TripItineraryPanel({ tripId }: TripItineraryPanelProps) {
   }
 
   const selectedDayId = activeDayId ?? days[0]?.id ?? null;
+  const selectedDay = days.find((day) => day.id === selectedDayId) ?? days[0];
 
   function resetForm() {
     setTitle("");
@@ -116,41 +111,15 @@ export function TripItineraryPanel({ tripId }: TripItineraryPanelProps) {
         </nav>
 
         <div className="space-y-4">
-          {days.filter((day) => day.id === selectedDayId).map((day) => (
-            <div key={day.id} className="space-y-4">
-              {day.summary ? <p className="rounded-xl bg-[var(--surface-muted)] p-4 text-sm text-neutral">{day.summary}</p> : null}
+          {selectedDay ? (
+            <div className="space-y-4">
+              {selectedDay.summary ? <p className="rounded-xl bg-[var(--surface-muted)] p-4 text-sm text-neutral">{selectedDay.summary}</p> : null}
 
-              {day.items.length > 0 ? (
-                <ol className="space-y-3" aria-label={`Activities for day ${day.day_number}`}>
-                  {day.items.map((item) => (
-                    <li key={item.id}>
-                      <Card className="p-4">
-                        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <span className="rounded-full bg-neutral-bg px-2 py-1 text-xs font-bold text-neutral">#{item.order}</span>
-                              {item.is_ai_generated ? <span className="rounded-full bg-info/10 px-2 py-1 text-xs font-bold text-info">AI</span> : null}
-                            </div>
-                            <h3 className="mt-2 font-semibold">{item.title}</h3>
-                            {item.description ? <p className="mt-1 text-sm text-neutral">{item.description}</p> : null}
-                            {item.destination ? <p className="mt-2 text-xs text-neutral">{item.destination.name}, {item.destination.city}</p> : null}
-                          </div>
-                          <div className="text-sm text-neutral sm:text-right">
-                            {item.start_time ? <p>{item.start_time}</p> : null}
-                            {formatCurrency(item.estimated_cost_usd) ? <p>{formatCurrency(item.estimated_cost_usd)}</p> : null}
-                          </div>
-                        </div>
-                      </Card>
-                    </li>
-                  ))}
-                </ol>
-              ) : (
-                <EmptyState message={`Day ${day.day_number} does not have activities yet.`} />
-              )}
+              <GeneratedItineraryReview day={selectedDay} />
 
               <Card className="p-4">
-                <form className="space-y-3" onSubmit={handleSubmit(day.id)}>
-                  <h3 className="font-semibold">Add activity to day {day.day_number}</h3>
+                <form className="space-y-3" onSubmit={handleSubmit(selectedDay.id)}>
+                  <h3 className="font-semibold">Add activity to day {selectedDay.day_number}</h3>
                   <Input label="Activity title" value={title} onChange={(event) => setTitle(event.target.value)} error={validationError} />
                   <Input label="Description" value={description} onChange={(event) => setDescription(event.target.value)} />
                   <div className="grid gap-3 sm:grid-cols-2">
@@ -162,7 +131,7 @@ export function TripItineraryPanel({ tripId }: TripItineraryPanelProps) {
                 </form>
               </Card>
             </div>
-          ))}
+          ) : null}
         </div>
       </div>
     </section>
