@@ -1,15 +1,8 @@
 """
-The only Django-facing entry point into the AI package.
+Django-facing services for AI workflows.
 
-Per the TraVerse architecture, no Django application other than
-``apps.ai_agents`` may import from ``ai``.
-
-Responsibilities
-----------------
-- Build the initial LangGraph state
-- Execute the planning graph
-- Persist validated AI output
-- Record every execution attempt
+The module keeps AI orchestration behind apps.ai_agents while translating
+Django models into primitive context for the AI layer.
 """
 
 from __future__ import annotations
@@ -71,6 +64,60 @@ def _build_initial_state(trip: Trip) -> dict:
         "traveler_count": trip.traveler_count,
         "trip_notes": trip.notes or "",
     }
+
+
+def _build_chat_trip_context(*, trip: Trip) -> str:
+    """Build a compact, authoritative snapshot of the current trip for chat."""
+    destinations = list(trip.destinations.all())
+    destination_lines = [
+        f"- {destination.name}, {destination.city}, {destination.country}"
+        for destination in destinations
+    ]
+
+    itinerary_days = trip.itinerary_days.prefetch_related("items").order_by("day_number")
+    itinerary_lines = []
+    for day in itinerary_days:
+        items = list(day.items.all())
+        if items:
+            item_text = "; ".join(
+                f"{item.title}"
+                + (f" (${item.estimated_cost_usd})" if item.estimated_cost_usd is not None else "")
+                for item in items
+            )
+            itinerary_lines.append(f"Day {day.day_number} ({day.date}): {item_text}")
+        elif day.summary:
+            itinerary_lines.append(f"Day {day.day_number} ({day.date}): {day.summary}")
+
+    budget = getattr(trip, "budget", None)
+    budget_lines = []
+    if budget is not None:
+        line_items = list(budget.line_items.all())
+        if line_items:
+            computed_total = sum((item.amount for item in line_items), Decimal("0"))
+            budget_lines.append(f"Currency: {budget.currency}")
+            budget_lines.append(f"Computed budget total: {computed_total}")
+            if budget.planned_total is not None:
+                budget_lines.append(f"Planned budget: {budget.planned_total}")
+            budget_lines.extend(
+                f"- {item.category}: {item.description} = {item.amount}"
+                for item in line_items
+            )
+
+    return "\n".join(
+        [
+            "Trip Data (authoritative application data):",
+            f"Title: {trip.title}",
+            f"Dates: {trip.start_date} to {trip.end_date} ({trip.duration_days} days)",
+            f"Travelers: {trip.traveler_count}",
+            f"Notes: {trip.notes or 'None'}",
+            "Destinations:",
+            *(destination_lines or ["- None recorded"]),
+            "Itinerary:",
+            *(itinerary_lines or ["- No itinerary activities recorded"]),
+            "Budget:",
+            *(budget_lines or ["- No budget line items recorded"]),
+        ]
+    )
 
 
 def _attach_conversation_context(*, session=None, state: dict, trip: Trip | None = None) -> dict:
@@ -150,19 +197,11 @@ def _persist_budget_estimate(*, trip: Trip, budget_estimate) -> None:
     budget_services.replace_ai_estimated_line_items(budget=budget, line_items=line_items)
 
 
-def _persist_weather_forecast(
-    *,
-    trip: Trip,
-    weather_forecast: WeatherForecastSchema,
-    itinerary_days: dict | None = None,
-) -> None:
+def _persist_weather_forecast(*, trip: Trip, weather_forecast: WeatherForecastSchema, itinerary_days: dict | None = None) -> None:
     """Persist weather from the planner's resolved day map."""
     if itinerary_days is None:
         dates = [weather_day.date for weather_day in weather_forecast.days]
-        itinerary_days = {
-            day.date: day
-            for day in ItineraryDay.objects.filter(trip=trip, date__in=dates)
-        }
+        itinerary_days = {day.date: day for day in ItineraryDay.objects.filter(trip=trip, date__in=dates)}
 
     for weather_day in weather_forecast.days:
         itinerary_day = itinerary_days.get(weather_day.date)
@@ -172,24 +211,14 @@ def _persist_weather_forecast(
         itinerary_day.weather_high_f = weather_day.high_f
         itinerary_day.weather_low_f = weather_day.low_f
         itinerary_day.weather_precipitation_chance = weather_day.precipitation_chance
-        itinerary_day.save(
-            update_fields=[
-                "weather_condition",
-                "weather_high_f",
-                "weather_low_f",
-                "weather_precipitation_chance",
-            ],
-        )
+        itinerary_day.save(update_fields=["weather_condition", "weather_high_f", "weather_low_f", "weather_precipitation_chance"])
 
 
 def _persist_recommendations(*, trip: Trip, recommendations: RecommendationBatchSchema) -> None:
     """Persist validated AI-generated recommendations."""
     recommendation_services.clear_pending_ai_recommendations(trip=trip)
     names = {recommendation.destination for recommendation in recommendations.recommendations}
-    destinations = {
-        destination.name: destination
-        for destination in Destination.objects.filter(name__in=names)
-    }
+    destinations = {destination.name: destination for destination in Destination.objects.filter(name__in=names)}
     for recommendation in recommendations.recommendations:
         destination = destinations.get(recommendation.destination)
         if destination is None:
@@ -224,10 +253,7 @@ def _notify_planning_succeeded(*, trip: Trip) -> None:
         user=trip.user,
         notification_type=NotificationType.TRIP_PLAN_READY,
         subject=f"Your itinerary for {trip.title} is ready!",
-        body=(
-            f"Your AI-generated plan for {trip.title} "
-            f"({trip.start_date} to {trip.end_date}) is ready to view."
-        ),
+        body=f"Your AI-generated plan for {trip.title} ({trip.start_date} to {trip.end_date}) is ready to view.",
     )
 
 
@@ -236,10 +262,7 @@ def run_travel_planner(*, trip: Trip, triggered_by=None) -> AgentRun:
     session = ChatService.get_active_session(trip=trip)
     initial_state = _build_initial_state(trip)
     initial_state = _attach_conversation_context(session=session, state=initial_state)
-    initial_state = _attach_destination_context(
-        state=initial_state,
-        user_message=" ".join(initial_state["destination_names"]),
-    )
+    initial_state = _attach_destination_context(state=initial_state, user_message=" ".join(initial_state["destination_names"]))
 
     snapshot = dict(initial_state)
     if "retrieved_destinations" in snapshot:
@@ -271,11 +294,7 @@ def run_travel_planner(*, trip: Trip, triggered_by=None) -> AgentRun:
             if "budget_estimate" in final_state:
                 _persist_budget_estimate(trip=trip, budget_estimate=final_state["budget_estimate"])
             if "weather_forecast" in final_state:
-                _persist_weather_forecast(
-                    trip=trip,
-                    weather_forecast=final_state["weather_forecast"],
-                    itinerary_days=itinerary_days,
-                )
+                _persist_weather_forecast(trip=trip, weather_forecast=final_state["weather_forecast"], itinerary_days=itinerary_days)
             if "recommendations" in final_state:
                 _persist_recommendations(trip=trip, recommendations=final_state["recommendations"])
             if "packing_list" in final_state:
@@ -300,18 +319,20 @@ def run_travel_planner(*, trip: Trip, triggered_by=None) -> AgentRun:
 
 
 def generate_chat_reply(*, trip: Trip, user_message: str) -> str:
-    """Execute a conversational AI request without running the planning graph."""
+    """Execute a conversational AI request with authoritative trip context."""
     session = ChatService.get_or_create_active_session(trip=trip)
     ChatService.add_user_message(session=session, content=user_message)
     memory = ConversationMemoryAdapter.build_memory(session=session)
     manager = ConversationManager()
     memory = manager.optimize_memory(memory)
     conversation_context = memory.transcript()
+    trip_context = _build_chat_trip_context(trip=trip)
     retrieved_destinations = search_destination(query=user_message)
     agent = ChatAgent()
     assistant_response = agent.reply(
         conversation_context=conversation_context,
         user_message=user_message,
+        trip_context=trip_context,
         retrieved_destinations=retrieved_destinations,
     ).strip()
     ChatService.add_assistant_message(session=session, content=assistant_response)
