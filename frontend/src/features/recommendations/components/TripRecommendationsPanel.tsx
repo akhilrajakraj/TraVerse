@@ -1,6 +1,5 @@
 import { useMemo, useState } from "react";
 
-import { Button } from "../../../components/ui/Button";
 import { Card } from "../../../components/ui/Card";
 import { EmptyState } from "../../../components/ui/EmptyState";
 import { ErrorState } from "../../../components/ui/ErrorState";
@@ -9,9 +8,9 @@ import { StatusBadge } from "../../../components/ui/StatusBadge";
 import { recommendationStatusColors } from "../../../lib/statusColors";
 import {
   recommendationCategoryLabels,
-  type Recommendation,
   type RecommendationStatus,
 } from "../api/recommendationsApi";
+import { AIRecommendationReview } from "./AIRecommendationReview";
 import { useAcceptRecommendation } from "../hooks/useAcceptRecommendation";
 import { useRejectRecommendation } from "../hooks/useRejectRecommendation";
 import { useTripRecommendations } from "../hooks/useTripRecommendations";
@@ -29,29 +28,20 @@ const filters: Array<{ value: RecommendationFilter; label: string }> = [
   { value: "rejected", label: "Rejected" },
 ];
 
-function formatScore(score: string) {
-  const numericScore = Number(score);
-  if (Number.isNaN(numericScore)) return score;
-  return `${Math.round(numericScore * 100)}% match`;
-}
-
-function getDestinationLabel(recommendation: Recommendation) {
-  const { city, country } = recommendation.destination;
-  return city ? `${city}, ${country}` : country;
-}
-
 export function TripRecommendationsPanel({ tripId }: TripRecommendationsPanelProps) {
   const recommendations = useTripRecommendations(tripId);
   const accept = useAcceptRecommendation();
   const reject = useRejectRecommendation();
   const [filter, setFilter] = useState<RecommendationFilter>("all");
 
+  const allRecommendations = recommendations.data?.results ?? [];
   const visibleRecommendations = useMemo(() => {
-    const items = recommendations.data?.results ?? [];
+    if (filter === "all") return allRecommendations;
+    return allRecommendations.filter((item) => item.status === filter);
+  }, [allRecommendations, filter]);
 
-    if (filter === "all") return items;
-    return items.filter((item) => item.status === filter);
-  }, [filter, recommendations.data?.results]);
+  const aiRecommendations = visibleRecommendations.filter((item) => item.is_ai_generated);
+  const manualRecommendations = visibleRecommendations.filter((item) => !item.is_ai_generated);
 
   function handleAccept(recommendationId: string) {
     accept.mutate({ recommendationId, tripId });
@@ -78,8 +68,6 @@ export function TripRecommendationsPanel({ tripId }: TripRecommendationsPanelPro
       />
     );
   }
-
-  const allRecommendations = recommendations.data.results;
 
   return (
     <section
@@ -123,116 +111,75 @@ export function TripRecommendationsPanel({ tripId }: TripRecommendationsPanelPro
         </div>
       ) : null}
 
-      {visibleRecommendations.length === 0 ? (
-        <EmptyState
-          message={
-            allRecommendations.length === 0
-              ? "No recommendations are available for this trip yet. AI-generated suggestions will appear here when the recommendation engine produces them."
-              : `No ${filter} recommendations are available.`
-          }
-        />
+      {allRecommendations.length === 0 ? (
+        <EmptyState message="No recommendations are available for this trip yet. AI-generated suggestions will appear here when the recommendation engine produces them." />
+      ) : visibleRecommendations.length === 0 ? (
+        <EmptyState message={`No ${filter} recommendations are available.`} />
       ) : (
-        <ol className="space-y-4" aria-label="Trip recommendations">
-          {visibleRecommendations.map((recommendation) => {
-            const isAccepting =
-              accept.isPending &&
-              accept.variables?.recommendationId === recommendation.id;
-            const isRejecting =
-              reject.isPending &&
-              reject.variables?.recommendationId === recommendation.id;
-            const isMutating = accept.isPending || reject.isPending;
+        <div className="space-y-7">
+          {aiRecommendations.length > 0 ? (
+            <AIRecommendationReview
+              recommendations={aiRecommendations}
+              onAccept={handleAccept}
+              onReject={handleReject}
+              acceptPending={accept.isPending}
+              rejectPending={reject.isPending}
+              acceptRecommendationId={accept.variables?.recommendationId}
+              rejectRecommendationId={reject.variables?.recommendationId}
+              acceptError={accept.error instanceof Error ? accept.error : null}
+              rejectError={reject.error instanceof Error ? reject.error : null}
+            />
+          ) : null}
 
-            return (
-              <li key={recommendation.id}>
-                <Card className="overflow-hidden p-0">
-                  <div className="flex flex-col sm:flex-row">
-                    {recommendation.destination.image_url ? (
-                      <img
-                        src={recommendation.destination.image_url}
-                        alt={recommendation.destination.name}
-                        className="h-48 w-full object-cover sm:h-auto sm:w-48"
-                      />
-                    ) : null}
-
-                    <div className="flex-1 p-5">
-                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                        <div>
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className="rounded-full bg-neutral-bg px-2 py-1 text-xs font-bold text-neutral">
-                              {recommendationCategoryLabels[recommendation.category]}
-                            </span>
-                            {recommendation.is_ai_generated ? (
-                              <span className="rounded-full bg-info/10 px-2 py-1 text-xs font-bold text-info">
-                                AI recommendation
-                              </span>
-                            ) : null}
-                          </div>
-                          <h3 className="mt-2 text-lg font-semibold">
-                            {recommendation.destination.name}
-                          </h3>
-                          <p className="mt-1 text-sm text-neutral">
-                            {getDestinationLabel(recommendation)}
-                          </p>
-                        </div>
-
-                        <div className="flex flex-col items-start gap-2 sm:items-end">
-                          <StatusBadge
-                            status={recommendation.status}
-                            colorMap={recommendationStatusColors}
+          {manualRecommendations.length > 0 ? (
+            <section aria-labelledby="manual-recommendations-heading">
+              <div className="mb-4">
+                <h3 id="manual-recommendations-heading" className="text-lg font-semibold">
+                  Other recommendations
+                </h3>
+              </div>
+              <ol className="space-y-4" aria-label="Other trip recommendations">
+                {manualRecommendations.map((recommendation) => (
+                  <li key={recommendation.id}>
+                    <Card className="overflow-hidden p-0">
+                      <div className="flex flex-col sm:flex-row">
+                        {recommendation.destination.image_url ? (
+                          <img
+                            src={recommendation.destination.image_url}
+                            alt={recommendation.destination.name}
+                            className="h-48 w-full object-cover sm:h-auto sm:w-48"
                           />
-                          <span className="text-sm font-semibold text-[var(--accent-dark)]">
-                            {formatScore(recommendation.score)}
-                          </span>
+                        ) : null}
+                        <div className="flex-1 p-5">
+                          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                            <div>
+                              <span className="rounded-full bg-neutral-bg px-2 py-1 text-xs font-bold text-neutral">
+                                {recommendationCategoryLabels[recommendation.category]}
+                              </span>
+                              <h4 className="mt-2 text-lg font-semibold">{recommendation.destination.name}</h4>
+                              <p className="mt-1 text-sm text-neutral">
+                                {recommendation.destination.city
+                                  ? `${recommendation.destination.city}, ${recommendation.destination.country}`
+                                  : recommendation.destination.country}
+                              </p>
+                            </div>
+                            <div className="flex flex-col items-start gap-2 sm:items-end">
+                              <StatusBadge status={recommendation.status} colorMap={recommendationStatusColors} />
+                              <span className="text-sm font-semibold text-[var(--accent-dark)]">
+                                {Math.round(Number(recommendation.score) * 100)}% match
+                              </span>
+                            </div>
+                          </div>
+                          <p className="mt-4 text-sm leading-6 text-neutral">{recommendation.reason}</p>
                         </div>
                       </div>
-
-                      <p className="mt-4 text-sm leading-6 text-neutral">
-                        {recommendation.reason}
-                      </p>
-
-                      {recommendation.status === "pending" ? (
-                        <div className="mt-5 flex flex-wrap gap-2">
-                          <Button
-                            type="button"
-                            onClick={() => handleAccept(recommendation.id)}
-                            isLoading={isAccepting}
-                            disabled={isMutating && !isAccepting}
-                          >
-                            Keep recommendation
-                          </Button>
-                          <Button
-                            type="button"
-                            variant="danger"
-                            onClick={() => handleReject(recommendation.id)}
-                            isLoading={isRejecting}
-                            disabled={isMutating && !isRejecting}
-                          >
-                            Dismiss
-                          </Button>
-                        </div>
-                      ) : null}
-
-                      {accept.isError && accept.variables?.recommendationId === recommendation.id ? (
-                        <p className="mt-3 text-sm text-red-600" role="alert">
-                          {accept.error instanceof Error
-                            ? accept.error.message
-                            : "Unable to accept this recommendation."}
-                        </p>
-                      ) : null}
-                      {reject.isError && reject.variables?.recommendationId === recommendation.id ? (
-                        <p className="mt-3 text-sm text-red-600" role="alert">
-                          {reject.error instanceof Error
-                            ? reject.error.message
-                            : "Unable to dismiss this recommendation."}
-                        </p>
-                      ) : null}
-                    </div>
-                  </div>
-                </Card>
-              </li>
-            );
-          })}
-        </ol>
+                    </Card>
+                  </li>
+                ))}
+              </ol>
+            </section>
+          ) : null}
+        </div>
       )}
     </section>
   );
