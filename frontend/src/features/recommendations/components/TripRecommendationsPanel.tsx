@@ -1,6 +1,5 @@
 import { useMemo, useState } from "react";
 
-import { Button } from "../../../components/ui/Button";
 import { Card } from "../../../components/ui/Card";
 import { EmptyState } from "../../../components/ui/EmptyState";
 import { ErrorState } from "../../../components/ui/ErrorState";
@@ -9,7 +8,6 @@ import { StatusBadge } from "../../../components/ui/StatusBadge";
 import { recommendationStatusColors } from "../../../lib/statusColors";
 import {
   recommendationCategoryLabels,
-  type Recommendation,
   type RecommendationStatus,
 } from "../api/recommendationsApi";
 import { AIRecommendationReview } from "./AIRecommendationReview";
