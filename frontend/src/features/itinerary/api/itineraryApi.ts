@@ -17,6 +17,10 @@ export interface ItineraryDay {
   date: string;
   day_number: number;
   summary: string;
+  weather_condition: string;
+  weather_high_f: number | null;
+  weather_low_f: number | null;
+  weather_precipitation_chance: number | null;
   items: ItineraryItem[];
 }
 
