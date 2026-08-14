@@ -5,7 +5,17 @@ import { TripItineraryPanel } from "../components/TripItineraryPanel";
 
 const mutate = vi.fn();
 let itineraryState = {
-  data: [{ id: "day-1", date: "2026-09-01", day_number: 1, summary: "Arrival", items: [] }],
+  data: [{
+    id: "day-1",
+    date: "2026-09-01",
+    day_number: 1,
+    summary: "Arrival",
+    weather_condition: "",
+    weather_high_f: null,
+    weather_low_f: null,
+    weather_precipitation_chance: null,
+    items: [],
+  }],
   isLoading: false,
   isError: false,
   error: null as Error | null,
@@ -24,7 +34,7 @@ describe("TripItineraryPanel", () => {
   beforeEach(() => {
     mutate.mockClear();
     itineraryState = {
-      data: [{ id: "day-1", date: "2026-09-01", day_number: 1, summary: "Arrival", items: [] }],
+            data: [{ id: "day-1", date: "2026-09-01", day_number: 1, summary: "Arrival", weather_condition: "", weather_high_f: null, weather_low_f: null, weather_precipitation_chance: null, items: [] }],
       isLoading: false,
       isError: false,
       error: null,
