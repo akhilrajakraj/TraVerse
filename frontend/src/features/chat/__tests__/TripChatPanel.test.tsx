@@ -1,14 +1,22 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { ChatMessage } from "../api/chatApi";
 import { TripChatPanel } from "../components/TripChatPanel";
 
 const sendMessage = vi.fn();
-let chatState = {
+let chatState: {
+  messages: ChatMessage[];
+  sessionId: string | null;
+  isSending: boolean;
+  error: Error | null;
+  sendMessage: typeof sendMessage;
+  clearError: ReturnType<typeof vi.fn>;
+} = {
   messages: [],
   sessionId: null,
   isSending: false,
-  error: null as Error | null,
+  error: null,
   sendMessage,
   clearError: vi.fn(),
 };
