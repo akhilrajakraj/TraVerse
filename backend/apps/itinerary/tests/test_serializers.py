@@ -54,6 +54,10 @@ class ItinerarySerializerTests(TestCase):
             date=date(2026, 4, 1),
             day_number=1,
             summary="Arrival",
+            weather_condition="Partly cloudy",
+            weather_high_f=82,
+            weather_low_f=68,
+            weather_precipitation_chance=30,
         )
 
         self.item = ItineraryItem.objects.create(
@@ -85,7 +89,7 @@ class ItinerarySerializerTests(TestCase):
 
     def test_itinerary_day_serializer(self):
         """
-        Day serializer should include nested itinerary items.
+        Day serializer should include nested itinerary items and persisted weather data.
         """
 
         serializer = ItineraryDaySerializer(
@@ -101,6 +105,14 @@ class ItinerarySerializerTests(TestCase):
             len(serializer.data["items"]),
             1,
         )
+
+        self.assertEqual(
+            serializer.data["weather_condition"],
+            "Partly cloudy",
+        )
+        self.assertEqual(serializer.data["weather_high_f"], 82)
+        self.assertEqual(serializer.data["weather_low_f"], 68)
+        self.assertEqual(serializer.data["weather_precipitation_chance"], 30)
 
     def test_add_item_serializer_valid(self):
         """

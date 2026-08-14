@@ -9,6 +9,10 @@ const day: ItineraryDay = {
   date: "2026-09-01",
   day_number: 1,
   summary: "Arrival day",
+  weather_condition: "",
+  weather_high_f: null,
+  weather_low_f: null,
+  weather_precipitation_chance: null,
   items: [
     {
       id: "item-ai",
