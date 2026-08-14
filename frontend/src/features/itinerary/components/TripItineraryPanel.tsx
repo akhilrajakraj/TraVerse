@@ -7,6 +7,7 @@ import { ErrorState } from "../../../components/ui/ErrorState";
 import { Input } from "../../../components/ui/Input";
 import { Spinner } from "../../../components/ui/Spinner";
 import { GeneratedItineraryReview } from "./GeneratedItineraryReview";
+import { ItineraryWeatherCard } from "./ItineraryWeatherCard";
 import { useAddItineraryItem } from "../hooks/useAddItineraryItem";
 import { useTripItinerary } from "../hooks/useTripItinerary";
 
@@ -114,6 +115,8 @@ export function TripItineraryPanel({ tripId }: TripItineraryPanelProps) {
           {selectedDay ? (
             <div className="space-y-4">
               {selectedDay.summary ? <p className="rounded-xl bg-[var(--surface-muted)] p-4 text-sm text-neutral">{selectedDay.summary}</p> : null}
+
+              <ItineraryWeatherCard day={selectedDay} />
 
               <GeneratedItineraryReview day={selectedDay} />
 
