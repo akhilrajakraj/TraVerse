@@ -8,6 +8,7 @@ import { routes } from "../../../routes/routeConfig";
 import { tripStatusColors } from "../../../lib/statusColors";
 import { TripAIPlannerPanel } from "../../ai-planner/components/TripAIPlannerPanel";
 import { TripBudgetPanel } from "../../budget/components/TripBudgetPanel";
+import { TripChatPanel } from "../../chat/components/TripChatPanel";
 import { TripItineraryPanel } from "../../itinerary/components/TripItineraryPanel";
 import { TripRecommendationsPanel } from "../../recommendations/components/TripRecommendationsPanel";
 import { useTrip } from "../hooks/useTrip";
@@ -90,6 +91,7 @@ export function TripDetailPage() {
         <TripItineraryPanel tripId={trip.id} />
         <TripBudgetPanel tripId={trip.id} />
         <TripRecommendationsPanel tripId={trip.id} />
+        <TripChatPanel tripId={trip.id} />
       </section>
     </div>
   );
