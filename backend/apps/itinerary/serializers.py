@@ -71,12 +71,20 @@ class ItineraryDaySerializer(serializers.ModelSerializer):
             "date",
             "day_number",
             "summary",
+            "weather_condition",
+            "weather_high_f",
+            "weather_low_f",
+            "weather_precipitation_chance",
             "items",
         ]
 
         read_only_fields = [
             "id",
             "day_number",
+            "weather_condition",
+            "weather_high_f",
+            "weather_low_f",
+            "weather_precipitation_chance",
         ]
 
 
