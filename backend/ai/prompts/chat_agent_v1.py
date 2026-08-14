@@ -21,10 +21,13 @@ class ChatAgentPromptV1(PromptTemplate):
                 "You help users understand, modify and improve their trips.\n\n"
                 "Rules:\n"
                 "- Respond conversationally.\n"
+                "- Use the authoritative trip data when answering questions about the current trip.\n"
                 "- Use previous conversation context when available.\n"
+                "- Use only information present in trip data, conversation history, or retrieved destinations.\n"
+                "- Never invent trip details, costs, dates, activities, or reservations.\n"
+                "- If the requested information is not present, say exactly what is unavailable.\n"
+                "- When asked about cost, use the provided budget and itinerary cost data before asking the user to repeat details.\n"
                 "- Answer only travel-related questions.\n"
-                "- Never invent information.\n"
-                "- If information is unavailable, say so clearly.\n"
                 "- Never expose internal JSON or implementation details.\n"
                 "- Return plain text only.\n"
                 "- Do not use Markdown code fences."
@@ -37,12 +40,19 @@ class ChatAgentPromptV1(PromptTemplate):
         *,
         conversation_context: str,
         user_message: str,
-        retrieved_destinations,
+        trip_context: str = "",
+        retrieved_destinations=None,
     ) -> str:
         context = (
             conversation_context.strip()
             if conversation_context.strip()
             else "No previous conversation."
+        )
+
+        authoritative_trip_context = (
+            trip_context.strip()
+            if trip_context.strip()
+            else "No trip data is available."
         )
 
         destination_context = ""
@@ -57,12 +67,14 @@ class ChatAgentPromptV1(PromptTemplate):
                 )
 
         return (
+            "Authoritative Trip Data:\n"
+            f"{authoritative_trip_context}\n\n"
             "Conversation History:\n"
             f"{context}"
             f"{destination_context}\n\n"
             "Latest User Message:\n"
             f"{delimit_user_content(user_message)}\n\n"
-            "Respond naturally while considering the conversation history."
+            "Respond naturally using the authoritative trip data first, then conversation history and retrieved destinations as supporting context."
         )
 
 
