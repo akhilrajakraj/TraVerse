@@ -11,36 +11,10 @@ This roadmap is derived from the TraVerse React Frontend Implementation Bible TO
 - Chapter 11 — AI Planner Trigger & Polling UI
 - Chapter 12 — Agent Run Status & Live Progress Indicators
 - Chapter 13 — Generated Itinerary Review UI
+- Chapter 14 — Weather Display UI
+- Chapter 15 — Recommendation Review UI
 
 ## Remaining UI chapters and planned features
-
-### Chapter 14 — Weather Display UI
-Backend integration: Backend Chapter 14 (`weather_*` fields)
-
-Planned UI:
-- Per-day weather card attached to the corresponding itinerary day.
-- Weather condition text displayed from the backend's authoritative weather condition field.
-- High and low temperature display in the backend's Fahrenheit contract.
-- Precipitation probability display when the backend provides it.
-- A small condition icon/presentation mapping based only on the backend condition value; no frontend weather sourcing or weather inference.
-- Graceful missing-weather state when a day has no weather data.
-- Weather loading/error behavior through the existing itinerary data flow.
-- Responsive presentation that works alongside the Chapter 13 itinerary review UI.
-- Focused tests for populated, partial/missing, and condition-mapping states.
-
-Architecture rule: reuse the existing itinerary API/query and do not create a second weather API, polling system, weather provider, or AI behavior. If the backend response does not expose the existing `weather_*` model fields, add only the minimum serializer/API contract change required; do not redesign the itinerary backend.
-
-### Chapter 15 — Recommendation Review UI (AI-Specific)
-Backend integration: Backend Chapter 15
-
-Planned UI:
-- AI recommendation cards attached to the trip/planning result.
-- Score-based ordering using the backend's recommendation score.
-- Recommendation title, description, destination/context, and score presentation according to the actual serializer contract.
-- Clear recommendation state presentation.
-- Accept/reject interaction only if the backend exposes those mutations and permitted transitions.
-- Loading, empty, error, and mutation states.
-- Focused tests for ordering, rendering, and permitted actions.
 
 ### Chapter 16 — Packing List UI
 Backend integration: Backend Chapter 16 (`PackingItem`)
@@ -212,6 +186,6 @@ Planned work:
 
 ## Current execution pointer
 
-**Next chapter: Chapter 14 — Weather Display UI.**
+**Next chapter: Chapter 16 — Packing List UI.**
 
-Before implementing Chapter 14, verify whether `ItineraryDaySerializer` exposes the model's `weather_condition`, `weather_high_f`, `weather_low_f`, and `weather_precipitation_chance` fields. If it does not, treat that as a backend/API contract gap and make only the minimal serializer/frontend type change necessary to expose already-persisted weather data. Do not modify the weather agent or AI orchestration for a presentation-layer requirement.
+Before implementing Chapter 16, inspect the current `PackingItem` model, serializer, trip-scoped list endpoint, and any mutation endpoints. Reuse existing TanStack Query and shared UI primitives. Do not invent packing categories, toggle semantics, or mutation endpoints.
