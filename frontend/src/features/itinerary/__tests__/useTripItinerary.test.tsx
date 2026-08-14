@@ -24,7 +24,19 @@ describe("useTripItinerary", () => {
   });
 
   it("fetches itinerary data for a trip id", async () => {
-    vi.spyOn(itineraryApi, "fetchTripItinerary").mockResolvedValue([{ id: "day-1", date: "2026-09-01", day_number: 1, summary: "", items: [] }]);
+    vi.spyOn(itineraryApi, "fetchTripItinerary").mockResolvedValue([
+      {
+        id: "day-1",
+        date: "2026-09-01",
+        day_number: 1,
+        summary: "",
+        weather_condition: "",
+        weather_high_f: null,
+        weather_low_f: null,
+        weather_precipitation_chance: null,
+        items: [],
+      },
+    ]);
 
     const { result } = renderHook(() => useTripItinerary("trip-1"), { wrapper: createWrapper() });
 
