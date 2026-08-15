@@ -30,15 +30,14 @@ class ChatAgent:
         *,
         conversation_context: str,
         user_message: str,
-        retrieved_destinations = None,
+        trip_context: str = "",
+        retrieved_destinations=None,
     ) -> str:
-        """
-        Generate a conversational response.
-        """
-
+        """Generate a conversational response using current trip context."""
         user_prompt = self._prompt.render_user_prompt(
             conversation_context=conversation_context,
             user_message=user_message,
+            trip_context=trip_context,
             retrieved_destinations=retrieved_destinations or [],
         )
 

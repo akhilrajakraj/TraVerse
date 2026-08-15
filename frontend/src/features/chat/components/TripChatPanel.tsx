@@ -45,7 +45,7 @@ export function TripChatPanel({ tripId }: TripChatPanelProps) {
         </p>
       </div>
 
-      <Card className="p-0 overflow-hidden">
+      <Card className="overflow-hidden p-0">
         <div
           className="max-h-[28rem] min-h-48 overflow-y-auto p-4 sm:p-5"
           aria-live="polite"
@@ -62,26 +62,29 @@ export function TripChatPanel({ tripId }: TripChatPanelProps) {
             </div>
           ) : (
             <ol className="space-y-4" aria-label="Conversation">
-              {messages.map((message) => (
-                <li key={message.id} className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}>
-                  <div
-                    className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-6 sm:max-w-[75%] ${
-                      message.role === "user"
-                        ? "bg-info text-white"
-                        : "bg-neutral-bg text-[var(--text)]"
-                    }`}
-                  >
-                    <p className="mb-1 text-[11px] font-bold uppercase tracking-wide opacity-70">
-                      {message.role === "user" ? "You" : message.role === "assistant" ? "TraVerse" : "System"}
-                    </p>
-                    <p className="whitespace-pre-wrap break-words">{message.content}</p>
-                  </div>
-                </li>
-              ))}
+              {messages.map((message) => {
+                const isUser = message.role === "user";
+                return (
+                  <li key={message.id} className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
+                    <div
+                      className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-6 sm:max-w-[75%] ${
+                        isUser
+                          ? "bg-info !text-white shadow-sm"
+                          : "bg-neutral-bg !text-[var(--text)] shadow-sm"
+                      }`}
+                    >
+                      <p className={`mb-1 text-[11px] font-bold uppercase tracking-wide ${isUser ? "!text-white/80" : "!text-neutral"}`}>
+                        {isUser ? "You" : message.role === "assistant" ? "TraVerse" : "System"}
+                      </p>
+                      <p className="!text-inherit whitespace-pre-wrap break-words">{message.content}</p>
+                    </div>
+                  </li>
+                );
+              })}
               {isSending ? (
                 <li className="flex justify-start" aria-label="Assistant is responding">
-                  <div className="rounded-2xl bg-neutral-bg px-4 py-3 text-sm text-neutral">
-                    TraVerse is thinking…
+                  <div className="rounded-2xl bg-neutral-bg px-4 py-3 !text-[var(--text)] shadow-sm">
+                    <span className="font-medium">TraVerse is thinking…</span>
                   </div>
                 </li>
               ) : null}

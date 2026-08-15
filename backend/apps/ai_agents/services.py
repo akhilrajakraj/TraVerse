@@ -73,6 +73,59 @@ def _build_initial_state(trip: Trip) -> dict:
     }
 
 
+def _build_chat_trip_context(*, trip: Trip) -> str:
+    """Build a compact authoritative snapshot of data already stored for the trip."""
+    destinations = trip.destinations.all()
+    destination_lines = [
+        f"- {destination.name}, {destination.city}, {destination.country}"
+        for destination in destinations
+    ]
+
+    itinerary_lines = []
+    for day in trip.itinerary_days.prefetch_related("items").order_by("day_number"):
+        items = list(day.items.all())
+        if items:
+            activities = "; ".join(
+                f"{item.title}"
+                + (f" (${item.estimated_cost_usd})" if item.estimated_cost_usd is not None else "")
+                for item in items
+            )
+            itinerary_lines.append(f"Day {day.day_number} ({day.date}): {activities}")
+        elif day.summary:
+            itinerary_lines.append(f"Day {day.day_number} ({day.date}): {day.summary}")
+
+    budget_lines = []
+    budget = getattr(trip, "budget", None)
+    if budget is not None:
+        line_items = list(budget.line_items.all())
+        if line_items:
+            computed_total = sum((item.amount for item in line_items), Decimal("0"))
+            budget_lines.append(f"Currency: {budget.currency}")
+            budget_lines.append(f"Computed budget total: {computed_total}")
+            if budget.planned_total is not None:
+                budget_lines.append(f"Planned budget: {budget.planned_total}")
+            budget_lines.extend(
+                f"- {item.category}: {item.description} = {item.amount}"
+                for item in line_items
+            )
+
+    return "\n".join(
+        [
+            "Trip Data (authoritative application data):",
+            f"Title: {trip.title}",
+            f"Dates: {trip.start_date} to {trip.end_date} ({trip.duration_days} days)",
+            f"Travelers: {trip.traveler_count}",
+            f"Notes: {trip.notes or 'None'}",
+            "Destinations:",
+            *(destination_lines or ["- None recorded"]),
+            "Itinerary:",
+            *(itinerary_lines or ["- No itinerary activities recorded"]),
+            "Budget:",
+            *(budget_lines or ["- No budget line items recorded"]),
+        ]
+    )
+
+
 def _attach_conversation_context(*, session=None, state: dict, trip: Trip | None = None) -> dict:
     """Attach optimized conversation context without duplicate production lookups."""
     if session is None and trip is not None:
@@ -307,11 +360,13 @@ def generate_chat_reply(*, trip: Trip, user_message: str) -> str:
     manager = ConversationManager()
     memory = manager.optimize_memory(memory)
     conversation_context = memory.transcript()
+    trip_context = _build_chat_trip_context(trip=trip)
     retrieved_destinations = search_destination(query=user_message)
     agent = ChatAgent()
     assistant_response = agent.reply(
         conversation_context=conversation_context,
         user_message=user_message,
+        trip_context=trip_context,
         retrieved_destinations=retrieved_destinations,
     ).strip()
     ChatService.add_assistant_message(session=session, content=assistant_response)

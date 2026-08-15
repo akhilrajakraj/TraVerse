@@ -1672,6 +1672,7 @@ class GenerateChatReplyTests(BaseServiceTestCase):
         agent.reply.assert_called_once_with(
             conversation_context=ANY,
             user_message="Tokyo",
+            trip_context=ANY,
             retrieved_destinations=mock_search_destination.return_value,
         )
 
